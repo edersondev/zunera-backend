@@ -1,0 +1,22 @@
+name: zunera-backend
+
+services:
+  dbmysql_test:
+    image: mysql:8.4
+    environment:
+      - MYSQL_ROOT_PASSWORD=123456x
+      - MYSQL_DATABASE=dbzunera_test
+      - MYSQL_USER=dbusersm_test
+      - MYSQL_PASSWORD=1234x
+    ports:
+      - "3308:3306"
+    volumes:
+      - appdb-test:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p123456x"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+volumes:
+  appdb-test:
