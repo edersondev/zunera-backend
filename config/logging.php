@@ -7,6 +7,8 @@ use Monolog\Processor\PsrLogMessageProcessor;
 
 return [
 
+    'auth_channel' => env('AUTH_LOG_CHANNEL', 'auth'),
+
     /*
     |--------------------------------------------------------------------------
     | Default Log Channel
@@ -62,6 +64,14 @@ return [
             'driver' => 'single',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
+            'replace_placeholders' => true,
+        ],
+
+        'auth' => [
+            'driver' => 'daily',
+            'path' => storage_path('logs/authentication.log'),
+            'level' => env('AUTH_LOG_LEVEL', 'info'),
+            'max_files' => env('AUTH_SECURITY_LOG_RETENTION_DAYS', 365),
             'replace_placeholders' => true,
         ],
 
