@@ -1,0 +1,15 @@
+{
+  "warmups": 10,
+  "concurrency": 5,
+  "timing": "client_monotonic_complete_response_body",
+  "measured_mix": {
+    "registration": 10,
+    "successful_login": 20,
+    "invalid_login_distinct_limiter_keys": 10,
+    "session_read": 20,
+    "session_continue": 10,
+    "recovery_request": 10,
+    "valid_reset": 10,
+    "invalid_or_expired_reset": 10
+  }
+}
