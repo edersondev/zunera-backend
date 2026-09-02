@@ -6,9 +6,9 @@ namespace App\Services\Authentication;
 
 use App\Exceptions\AuthenticationException;
 use Closure;
+use Illuminate\Contracts\Validation\UncompromisedVerifier;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Support\Facades\App;
-use Illuminate\Validation\UncompromisedVerifier;
 
 final class SafePasswordRule implements ValidationRule
 {
