@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AuthMailDeliveryEventController;
+use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\FinancialAccountController;
 use App\Http\Controllers\Api\V1\FinancialAccountSummaryController;
 use Illuminate\Support\Facades\Route;
@@ -25,5 +26,12 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('/financial-accounts/{account_id}', [FinancialAccountController::class, 'update'])->whereNumber('account_id');
         Route::post('/financial-accounts/{account_id}/archive', [FinancialAccountController::class, 'archive'])->whereNumber('account_id');
         Route::post('/financial-accounts/{account_id}/restore', [FinancialAccountController::class, 'restore'])->whereNumber('account_id');
+
+        Route::get('/categories', [CategoryController::class, 'index']);
+        Route::post('/categories', [CategoryController::class, 'store']);
+        Route::get('/categories/{category_id}', [CategoryController::class, 'show'])->whereNumber('category_id');
+        Route::patch('/categories/{category_id}', [CategoryController::class, 'update'])->whereNumber('category_id');
+        Route::post('/categories/{category_id}/archive', [CategoryController::class, 'archive'])->whereNumber('category_id');
+        Route::post('/categories/{category_id}/restore', [CategoryController::class, 'restore'])->whereNumber('category_id');
     });
 });
