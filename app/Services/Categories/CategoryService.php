@@ -82,33 +82,41 @@ final class CategoryService
     {
         $this->assertMutable($user, $category);
 
-        return DB::transaction(function () use ($category, $data): Category {
-            $classification = $data->has('classification') ? $data->changes['classification'] : $category->classification;
-            if ($data->has('classification') && $category->has_financial_transactions) {
-                throw CategoryStateException::classificationLocked();
-            }
-            $name = $data->has('name') ? trim((string) $data->changes['name']) : $category->name;
-            $normalizedName = CategoryNameNormalizer::normalize($name);
-            if ($category->status->isActive()) {
-                $this->assertNoActiveConflict($category, $classification, $normalizedName);
-            }
-            if ($data->has('name')) {
-                $category->name = $name;
-                $category->normalized_name = $normalizedName;
-            }
-            if ($data->has('classification')) {
-                $category->classification = $classification;
-            }
-            if ($data->has('color')) {
-                $category->color = CategoryVisualOptions::color($data->changes['color']);
-            }
-            if ($data->has('icon')) {
-                $category->icon = CategoryVisualOptions::icon($data->changes['icon']);
-            }
-            $category->save();
+        try {
+            return DB::transaction(function () use ($category, $data): Category {
+                $classification = $data->has('classification') ? $data->changes['classification'] : $category->classification;
+                if ($data->has('classification') && $category->has_financial_transactions) {
+                    throw CategoryStateException::classificationLocked();
+                }
+                $name = $data->has('name') ? trim((string) $data->changes['name']) : $category->name;
+                $normalizedName = CategoryNameNormalizer::normalize($name);
+                if ($category->status->isActive()) {
+                    $this->assertNoActiveConflict($category, $classification, $normalizedName);
+                }
+                if ($data->has('name')) {
+                    $category->name = $name;
+                    $category->normalized_name = $normalizedName;
+                }
+                if ($data->has('classification')) {
+                    $category->classification = $classification;
+                }
+                if ($data->has('color')) {
+                    $category->color = CategoryVisualOptions::color($data->changes['color']);
+                }
+                if ($data->has('icon')) {
+                    $category->icon = CategoryVisualOptions::icon($data->changes['icon']);
+                }
+                $category->save();
 
-            return $category;
-        });
+                return $category;
+            });
+        } catch (QueryException $exception) {
+            if ($this->isUniqueViolation($exception)) {
+                throw CategoryNameConflictException::activeNameConflict();
+            }
+
+            throw $exception;
+        }
     }
 
     public function archive(User $user, Category $category): Category
@@ -131,17 +139,25 @@ final class CategoryService
     {
         $this->assertMutable($user, $category);
 
-        return DB::transaction(function () use ($category): Category {
-            if ($category->status->isActive()) {
-                throw CategoryStateException::alreadyActive();
-            }
-            $this->assertNoActiveConflict($category, $category->classification, CategoryNameNormalizer::normalize($category->name));
-            $category->status = CategoryStatus::Active;
-            $category->archived_at = null;
-            $category->save();
+        try {
+            return DB::transaction(function () use ($category): Category {
+                if ($category->status->isActive()) {
+                    throw CategoryStateException::alreadyActive();
+                }
+                $this->assertNoActiveConflict($category, $category->classification, CategoryNameNormalizer::normalize($category->name));
+                $category->status = CategoryStatus::Active;
+                $category->archived_at = null;
+                $category->save();
 
-            return $category;
-        });
+                return $category;
+            });
+        } catch (QueryException $exception) {
+            if ($this->isUniqueViolation($exception)) {
+                throw CategoryNameConflictException::activeNameConflict();
+            }
+
+            throw $exception;
+        }
     }
 
     private function assertMutable(User $user, Category $category): void

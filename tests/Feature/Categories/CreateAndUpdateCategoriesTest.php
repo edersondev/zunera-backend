@@ -36,6 +36,18 @@ final class CreateAndUpdateCategoriesTest extends TestCase
     }
 
     #[Test]
+    public function duplicate_category_updates_return_safe_conflict_feedback(): void
+    {
+        $user = $this->signedInUser();
+        $existing = Category::factory()->create(['user_id' => $user->id, 'name' => 'Pet care']);
+        $category = Category::factory()->create(['user_id' => $user->id, 'name' => 'Pet health']);
+
+        $this->patchJson("/api/v1/categories/{$category->id}", ['name' => $existing->name])
+            ->assertStatus(409)
+            ->assertJsonPath('code', 'category_name_conflict');
+    }
+
+    #[Test]
     public function system_and_used_categories_are_protected_and_other_users_are_not_found(): void
     {
         $this->seed(CategorySeeder::class);
