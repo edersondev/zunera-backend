@@ -8,28 +8,28 @@ use RuntimeException;
 
 final class AuthenticationException extends RuntimeException
 {
+    private function __construct(string $translationKey, private readonly string $errorCode, int $status)
+    {
+        parent::__construct(__($translationKey), $status);
+    }
+
     public static function passwordSafetyUnavailable(): self
     {
-        return new self('Password safety validation is temporarily unavailable.', 503);
+        return new self('auth.password_safety_unavailable', 'password_safety_unavailable', 503);
     }
 
     public static function recoveryLinkExpired(): self
     {
-        return new self('This recovery link has expired.', 422);
+        return new self('auth.recovery_link_expired', 'recovery_link_expired', 422);
     }
 
     public static function recoveryLinkInvalid(): self
     {
-        return new self('This recovery link is invalid.', 422);
+        return new self('auth.recovery_link_invalid', 'recovery_link_invalid', 422);
     }
 
     public function errorCode(): string
     {
-        return match ($this->getMessage()) {
-            'Password safety validation is temporarily unavailable.' => 'password_safety_unavailable',
-            'This recovery link has expired.' => 'recovery_link_expired',
-            'This recovery link is invalid.' => 'recovery_link_invalid',
-            default => 'authentication_error',
-        };
+        return $this->errorCode;
     }
 }

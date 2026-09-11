@@ -57,13 +57,13 @@ final class AuthController extends Controller
     {
         $service->request($request->toData());
 
-        return response()->json(['message' => 'If an account exists for that email, recovery instructions will be sent.'], Response::HTTP_ACCEPTED);
+        return response()->json(['message' => __('auth.recovery_sent')], Response::HTTP_ACCEPTED);
     }
 
     public function resetPassword(ResetPasswordRequest $request, PasswordResetService $service): JsonResponse
     {
         $service->reset($request->toData());
 
-        return response()->json(['message' => 'Password changed. You can sign in with your new password.']);
+        return response()->json(['message' => __('auth.password_changed')]);
     }
 }

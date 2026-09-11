@@ -3,6 +3,7 @@
 use App\Exceptions\AuthenticationException as ZuneraAuthenticationException;
 use App\Exceptions\LoginThrottledException;
 use App\Http\Middleware\EnforceSessionLifetime;
+use App\Http\Middleware\SetRequestLocale;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -19,6 +20,7 @@ return Application::configure(basePath: dirname(__DIR__))
         health: '/up',
     )
     ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->append(SetRequestLocale::class);
         $middleware->statefulApi();
         $middleware->alias([
             'session.lifetime' => EnforceSessionLifetime::class,
@@ -34,7 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
                 return null;
             }
 
-            return response()->json(['message' => 'Unauthenticated.'], Response::HTTP_UNAUTHORIZED);
+            return response()->json(['message' => __('auth.unauthenticated')], Response::HTTP_UNAUTHORIZED);
         });
 
         $exceptions->render(function (ValidationException $exception, Request $request) {
@@ -43,14 +45,14 @@ return Application::configure(basePath: dirname(__DIR__))
             }
 
             return response()->json([
-                'message' => 'The given data was invalid.',
+                'message' => __('validation.invalid'),
                 'errors' => $exception->errors(),
             ], Response::HTTP_UNPROCESSABLE_ENTITY);
         });
 
         $exceptions->render(function (LoginThrottledException $exception, Request $request) {
             return response()
-                ->json(['message' => 'Too many sign-in attempts.', 'code' => 'too_many_attempts'], Response::HTTP_TOO_MANY_REQUESTS)
+                ->json(['message' => __('auth.throttled'), 'code' => 'too_many_attempts'], Response::HTTP_TOO_MANY_REQUESTS)
                 ->withHeaders(['Retry-After' => (string) $exception->retryAfter]);
         });
 
