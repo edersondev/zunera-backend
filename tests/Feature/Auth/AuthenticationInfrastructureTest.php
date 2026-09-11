@@ -26,6 +26,6 @@ final class AuthenticationInfrastructureTest extends TestCase
     {
         $this->getJson('/api/v1/auth/session')
             ->assertUnauthorized()
-            ->assertJsonPath('message', 'Unauthenticated.');
+            ->assertJsonPath('message', 'Não autenticado.');
     }
 }

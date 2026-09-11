@@ -18,6 +18,7 @@ final class LoginSessionLogoutTest extends TestCase
     public function it_signs_in_reads_session_continues_and_logs_out_current_session(): void
     {
         User::factory()->create([
+            'name' => 'Maria Souza',
             'email' => 'person@example.com',
             'password' => Hash::make('correct horse battery staple'),
         ]);
@@ -26,10 +27,12 @@ final class LoginSessionLogoutTest extends TestCase
             'email' => ' PERSON@example.com ',
             'password' => 'correct horse battery staple',
         ])->assertOk()
+            ->assertJsonPath('data.user.name', 'Maria Souza')
             ->assertJsonPath('data.user.email', 'person@example.com');
 
         $this->fromFrontend()->getJson('/api/v1/auth/session')
             ->assertOk()
+            ->assertJsonPath('data.user.name', 'Maria Souza')
             ->assertJsonPath('data.user.email', 'person@example.com');
 
         $this->fromFrontend()->postJson('/api/v1/auth/session/continue')
@@ -52,7 +55,31 @@ final class LoginSessionLogoutTest extends TestCase
             'email' => 'person@example.com',
             'password' => 'wrong password',
         ])->assertUnauthorized()
-            ->assertJsonPath('message', 'Unauthenticated.');
+            ->assertJsonPath('message', 'Não autenticado.');
+    }
+
+    #[Test]
+    public function it_localizes_authentication_errors_in_english(): void
+    {
+        $this->fromFrontend()->withHeader('Accept-Language', 'en')->postJson('/api/v1/auth/login', [
+            'email' => 'person@example.com',
+            'password' => 'wrong password',
+        ])->assertUnauthorized()->assertJsonPath('message', 'Unauthenticated.');
+    }
+
+    #[Test]
+    public function it_keeps_legacy_nameless_accounts_compatible(): void
+    {
+        User::factory()->create([
+            'name' => null,
+            'email' => 'legacy@example.com',
+            'password' => Hash::make('correct horse battery staple'),
+        ]);
+
+        $this->fromFrontend()->postJson('/api/v1/auth/login', [
+            'email' => 'legacy@example.com',
+            'password' => 'correct horse battery staple',
+        ])->assertOk()->assertJsonPath('data.user.name', null);
     }
 
     #[Test]

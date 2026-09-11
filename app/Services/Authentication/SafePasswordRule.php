@@ -29,7 +29,7 @@ final class SafePasswordRule implements ValidationRule
         $password = (string) $value;
 
         if (in_array(mb_strtolower(trim($password)), self::COMMON_PASSWORDS, true)) {
-            $fail('The password is too common.');
+            $fail(__('validation.password_common'));
 
             return;
         }
@@ -48,7 +48,7 @@ final class SafePasswordRule implements ValidationRule
         }
 
         if (! $verified) {
-            $fail('The password has appeared in a data breach.');
+            $fail(__('validation.password_compromised'));
         }
     }
 }

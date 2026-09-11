@@ -28,7 +28,7 @@ final class EnforceSessionLifetime
             $request->session()->regenerateToken();
             Auth::forgetGuards();
 
-            return response()->json(['message' => 'Unauthenticated.', 'code' => 'session_expired'], Response::HTTP_UNAUTHORIZED);
+            return response()->json(['message' => __('auth.session_expired'), 'code' => 'session_expired'], Response::HTTP_UNAUTHORIZED);
         }
 
         if (! $request->is('api/v1/auth/session')) {

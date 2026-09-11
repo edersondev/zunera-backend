@@ -30,7 +30,7 @@ final class PasswordResetTest extends TestCase
             'password' => 'new correct battery staple',
             'password_confirmation' => 'new correct battery staple',
         ])->assertOk()
-            ->assertJsonPath('message', 'Password changed. You can sign in with your new password.');
+            ->assertJsonPath('message', 'Senha alterada. Você já pode entrar com sua nova senha.');
 
         $this->assertTrue(Hash::check('new correct battery staple', $user->fresh()->password));
     }

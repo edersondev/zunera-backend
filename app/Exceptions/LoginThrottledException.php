@@ -10,6 +10,6 @@ final class LoginThrottledException extends RuntimeException
 {
     public function __construct(public readonly int $retryAfter)
     {
-        parent::__construct('Too many sign-in attempts.', 429);
+        parent::__construct(__('auth.throttled'), 429);
     }
 }

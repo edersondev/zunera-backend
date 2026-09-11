@@ -32,13 +32,15 @@ final class AuthenticationService
         try {
             $user = DB::transaction(function () use ($data): User {
                 return User::query()->create([
-                    'name' => null,
+                    'name' => $data->name,
                     'email' => $data->email,
                     'password' => Hash::make($data->password),
                 ]);
             });
         } catch (QueryException) {
-            throw ValidationException::withMessages(['email' => ['The email address is already registered.']]);
+            throw ValidationException::withMessages([
+                'email' => [__('validation.unique', ['attribute' => __('validation.attributes.email')])],
+            ]);
         }
 
         $this->startSession($user, $request);
@@ -63,7 +65,7 @@ final class AuthenticationService
                 throw $exception;
             }
 
-            throw new AuthenticationException('Invalid credentials.');
+            throw new AuthenticationException(__('auth.failed'));
         }
 
         $this->loginLimiter->clear($data->email, $data->ipAddress);
@@ -81,7 +83,7 @@ final class AuthenticationService
         $user = $request->user();
 
         if (! $user instanceof User) {
-            throw new AuthenticationException('Unauthenticated.');
+            throw new AuthenticationException(__('auth.unauthenticated'));
         }
 
         return $this->sessionPayload($user, $request);
@@ -95,7 +97,7 @@ final class AuthenticationService
         $user = $request->user();
 
         if (! $user instanceof User) {
-            throw new AuthenticationException('Unauthenticated.');
+            throw new AuthenticationException(__('auth.unauthenticated'));
         }
 
         $request->session()->put('auth_last_activity_at', CarbonImmutable::now()->timestamp);

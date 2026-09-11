@@ -17,6 +17,6 @@ final class AuthMailDeliveryEventController extends Controller
         $request->validateSignature();
         $events->record($request->toData());
 
-        return response()->json(['message' => 'Authentication mail delivery event accepted.'], Response::HTTP_ACCEPTED);
+        return response()->json(['message' => __('auth.mail_delivery_accepted')], Response::HTTP_ACCEPTED);
     }
 }
