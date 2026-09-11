@@ -21,19 +21,32 @@ final class SetRequestLocale
 
     public function handle(Request $request, Closure $next): Response
     {
-        $locale = self::DEFAULT_LOCALE;
+        App::setLocale($this->resolveLocale($request));
+
+        return $next($request);
+    }
+
+    /**
+     * Missing and unsupported values default to PT-BR. The header is inspected
+     * directly because Symfony fabricates an implicit "en" language list when
+     * the request carries no Accept-Language header.
+     */
+    private function resolveLocale(Request $request): string
+    {
+        $header = $request->headers->get('Accept-Language');
+
+        if ($header === null || trim($header) === '') {
+            return self::DEFAULT_LOCALE;
+        }
 
         foreach ($request->getLanguages() as $language) {
             $normalized = strtolower(str_replace('_', '-', $language));
 
             if (isset(self::SUPPORTED_LOCALES[$normalized])) {
-                $locale = self::SUPPORTED_LOCALES[$normalized];
-                break;
+                return self::SUPPORTED_LOCALES[$normalized];
             }
         }
 
-        App::setLocale($locale);
-
-        return $next($request);
+        return self::DEFAULT_LOCALE;
     }
 }

@@ -51,7 +51,7 @@ final class LoginSessionLogoutTest extends TestCase
             'password' => Hash::make('correct horse battery staple'),
         ]);
 
-        $this->fromFrontend()->postJson('/api/v1/auth/login', [
+        $this->fromFrontend()->withHeader('Accept-Language', 'pt-BR')->postJson('/api/v1/auth/login', [
             'email' => 'person@example.com',
             'password' => 'wrong password',
         ])->assertUnauthorized()
