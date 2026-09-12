@@ -6,6 +6,7 @@ namespace App\Services\Transactions;
 
 use App\Data\Transactions\CreateTransactionData;
 use App\Data\Transactions\TransactionFilterData;
+use App\Data\Transactions\TransactionResponseData;
 use App\Data\Transactions\UpdateTransactionData;
 use App\Enums\Categories\CategoryStatus;
 use App\Enums\FinancialAccounts\AccountStatus;
@@ -22,7 +23,7 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final class TransactionService
 {
-    /** @return array{transaction: Transaction, status: int, meta: array<string, mixed>, replayed: bool} */
+    /** @return array{transaction: Transaction, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool} */
     public function create(User $user, CreateTransactionData $data, string $idempotencyKey): array
     {
         return DB::transaction(function () use ($user, $data, $idempotencyKey): array {
@@ -76,12 +77,7 @@ final class TransactionService
                 },
             );
 
-            return [
-                'transaction' => $this->findOwned($user, $result['transaction_id']),
-                'status' => $result['status'],
-                'meta' => $result['meta'],
-                'replayed' => $result['replayed'],
-            ];
+            return $this->completeMutation($user, $idempotencyKey, $result);
         });
     }
 
@@ -127,7 +123,7 @@ final class TransactionService
         return $query->orderByDesc('transaction_date')->orderByDesc('id')->paginate($filters->perPage, ['*'], 'page', $filters->page);
     }
 
-    /** @return array{transaction: Transaction, status: int, meta: array<string, mixed>, replayed: bool} */
+    /** @return array{transaction: Transaction, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool} */
     public function update(User $user, Transaction $transaction, UpdateTransactionData $data, string $idempotencyKey): array
     {
         return DB::transaction(function () use ($user, $transaction, $data, $idempotencyKey): array {
@@ -173,11 +169,11 @@ final class TransactionService
                 return ['transaction_id' => $locked->id, 'status' => 200, 'meta' => $meta];
             });
 
-            return ['transaction' => $this->findOwned($user, $result['transaction_id']), 'status' => $result['status'], 'meta' => $result['meta'], 'replayed' => $result['replayed']];
+            return $this->completeMutation($user, $idempotencyKey, $result);
         });
     }
 
-    /** @return array{transaction: Transaction, status: int, meta: array<string, mixed>, replayed: bool} */
+    /** @return array{transaction: Transaction, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool} */
     public function remove(User $user, Transaction $transaction, string $idempotencyKey): array
     {
         return $this->changeLifecycle($user, $transaction, 'remove', $idempotencyKey, function (Transaction $locked): array {
@@ -193,7 +189,7 @@ final class TransactionService
         });
     }
 
-    /** @return array{transaction: Transaction, status: int, meta: array<string, mixed>, replayed: bool} */
+    /** @return array{transaction: Transaction, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool} */
     public function restore(User $user, Transaction $transaction, ?TransactionStatus $requestedStatus, string $idempotencyKey): array
     {
         return $this->changeLifecycle($user, $transaction, 'restore:'.($requestedStatus?->value ?? 'default'), $idempotencyKey, function (Transaction $locked) use ($requestedStatus): array {
@@ -215,7 +211,7 @@ final class TransactionService
     }
 
     /** @param callable(Transaction): array{transaction_id: int, status: int, meta?: array<string, mixed>} $operation
-     * @return array{transaction: Transaction, status: int, meta: array<string, mixed>, replayed: bool} */
+     * @return array{transaction: Transaction, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool} */
     private function changeLifecycle(User $user, Transaction $transaction, string $action, string $idempotencyKey, callable $operation): array
     {
         return DB::transaction(function () use ($user, $transaction, $action, $idempotencyKey, $operation): array {
@@ -225,7 +221,7 @@ final class TransactionService
             }
             $result = app(TransactionIdempotencyService::class)->execute($user->id, $idempotencyKey, $this->fingerprint($action.':'.$locked->id, []), fn (): array => $operation($locked));
 
-            return ['transaction' => $this->findOwned($user, $result['transaction_id']), 'status' => $result['status'], 'meta' => $result['meta'], 'replayed' => $result['replayed']];
+            return $this->completeMutation($user, $idempotencyKey, $result);
         });
     }
 
@@ -257,6 +253,32 @@ final class TransactionService
         }
 
         return $category;
+    }
+
+    /**
+     * @param  array{transaction_id: int, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool}  $result
+     * @return array{transaction: Transaction, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool}
+     */
+    private function completeMutation(User $user, string $idempotencyKey, array $result): array
+    {
+        $transaction = $this->findOwned($user, $result['transaction_id']);
+        $response = $result['response'];
+
+        if (! $result['replayed']) {
+            $response = ['data' => TransactionResponseData::from($transaction)];
+            if ($result['meta'] !== []) {
+                $response['meta'] = $result['meta'];
+            }
+            app(TransactionIdempotencyService::class)->storeResponse($user->id, $idempotencyKey, $response);
+        }
+
+        return [
+            'transaction' => $transaction,
+            'status' => $result['status'],
+            'meta' => $result['meta'],
+            'response' => $response,
+            'replayed' => $result['replayed'],
+        ];
     }
 
     /** @param array<string, mixed> $payload */

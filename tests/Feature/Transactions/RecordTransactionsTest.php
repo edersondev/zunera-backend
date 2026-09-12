@@ -37,6 +37,23 @@ final class RecordTransactionsTest extends TestCase
     }
 
     #[Test]
+    public function matching_create_retries_replay_the_original_response_after_later_changes(): void
+    {
+        $user = $this->signIn(User::factory()->create());
+        $account = FinancialAccount::factory()->create(['user_id' => $user->id]);
+        $category = Category::factory()->create(['user_id' => $user->id, 'classification' => CategoryClassification::Income]);
+        $payload = $this->payload($account, $category, 'income', 500);
+
+        $original = $this->postJson('/api/v1/transactions', $payload, ['Idempotency-Key' => 'create-original-response'])->assertCreated();
+        $transactionId = $original->json('data.id');
+        $this->patchJson("/api/v1/transactions/{$transactionId}", ['description' => 'Alterada'], ['Idempotency-Key' => 'create-original-response-update'])->assertOk();
+
+        $this->postJson('/api/v1/transactions', $payload, ['Idempotency-Key' => 'create-original-response'])
+            ->assertCreated()
+            ->assertExactJson($original->json());
+    }
+
+    #[Test]
     public function invalid_or_foreign_associations_have_safe_field_feedback(): void
     {
         $user = $this->signIn(User::factory()->create());

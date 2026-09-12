@@ -35,10 +35,7 @@ final class TransactionController extends Controller
         $user = $request->user();
         $result = $service->create($user, $request->toData(), $request->idempotencyKey());
 
-        return (new TransactionResource($result['transaction']))
-            ->additional($result['meta'] === [] ? [] : ['meta' => $result['meta']])
-            ->response()
-            ->setStatusCode($result['status']);
+        return $this->mutationResponse($result);
     }
 
     public function show(Request $request, TransactionService $service, int $transaction_id): JsonResponse
@@ -88,9 +85,13 @@ final class TransactionController extends Controller
         return $this->mutationResponse($result);
     }
 
-    /** @param array{transaction: Transaction, status: int, meta: array<string, mixed>, replayed: bool} $result */
+    /** @param array{transaction: Transaction, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool} $result */
     private function mutationResponse(array $result): JsonResponse
     {
+        if ($result['replayed']) {
+            return response()->json($result['response'])->setStatusCode($result['status']);
+        }
+
         return (new TransactionResource($result['transaction']))->additional($result['meta'] === [] ? [] : ['meta' => $result['meta']])->response()->setStatusCode($result['status']);
     }
 

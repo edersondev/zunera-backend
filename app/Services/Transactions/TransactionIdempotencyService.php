@@ -11,7 +11,7 @@ final class TransactionIdempotencyService
 {
     /**
      * @param  callable(): array{transaction_id: int, status: int, meta?: array<string, mixed>}  $operation
-     * @return array{transaction_id: int, status: int, meta: array<string, mixed>, replayed: bool}
+     * @return array{transaction_id: int, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool}
      */
     public function execute(int $userId, string $key, string $fingerprint, callable $operation): array
     {
@@ -32,6 +32,7 @@ final class TransactionIdempotencyService
                 'transaction_id' => (int) $existing->transaction_id,
                 'status' => (int) $existing->response_status,
                 'meta' => is_array($payload['meta'] ?? null) ? $payload['meta'] : [],
+                'response' => $payload,
                 'replayed' => true,
             ];
         }
@@ -55,7 +56,20 @@ final class TransactionIdempotencyService
             'transaction_id' => $result['transaction_id'],
             'status' => $result['status'],
             'meta' => $meta,
+            'response' => ['meta' => $meta],
             'replayed' => false,
         ];
+    }
+
+    /** @param array<string, mixed> $response */
+    public function storeResponse(int $userId, string $key, array $response): void
+    {
+        DB::table('transaction_mutation_requests')
+            ->where('user_id', $userId)
+            ->where('idempotency_key', $key)
+            ->update([
+                'response_body' => json_encode($response, JSON_THROW_ON_ERROR),
+                'updated_at' => now(),
+            ]);
     }
 }
