@@ -24,7 +24,7 @@ final class AuthenticationInfrastructureTest extends TestCase
     #[Test]
     public function it_returns_json_for_unauthenticated_api_requests(): void
     {
-        $this->getJson('/api/v1/auth/session')
+        $this->withHeader('Accept-Language', 'pt-BR')->getJson('/api/v1/auth/session')
             ->assertUnauthorized()
             ->assertJsonPath('message', 'Não autenticado.');
     }

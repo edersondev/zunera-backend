@@ -24,7 +24,7 @@ final class PasswordResetTest extends TestCase
         ]);
         $token = Password::createToken($user);
 
-        $this->postJson('/api/v1/auth/password/reset', [
+        $this->withHeader('Accept-Language', 'pt-BR')->postJson('/api/v1/auth/password/reset', [
             'email' => 'person@example.com',
             'token' => $token,
             'password' => 'new correct battery staple',

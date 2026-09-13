@@ -1,4 +1,10 @@
 .git/
+.gitignore
+.dockerignore
+.env*
+Dockerfile*
+coverage/
+*.log*
 .env*
 vendor/
 node_modules/
