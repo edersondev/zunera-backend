@@ -146,11 +146,19 @@ final class TransactionService
                 if ($resolvedCategory->classification->value !== $type->value) {
                     throw ValidationException::withMessages(['category_id' => ['Category type must match transaction type.']]);
                 }
+
+                // A generated occurrence keeps its recurrence source link: ordinary edits
+                // correct the movement itself and never detach it from its rule or date.
+                $recurringTransactionId = $locked->recurring_transaction_id;
+                $recurrenceScheduledDate = $locked->recurrence_scheduled_date?->toDateString();
+
                 foreach ($data->changes as $key => $value) {
                     $locked->{$key} = $value;
                 }
                 $locked->financial_account_id = $accountId;
                 $locked->category_id = $categoryId;
+                $locked->recurring_transaction_id = $recurringTransactionId;
+                $locked->recurrence_scheduled_date = $recurrenceScheduledDate;
                 $locked->save();
                 if ($account instanceof FinancialAccount) {
                     $account->has_financial_movements = true;

@@ -21,6 +21,12 @@ final class TransactionResponseData
             'currency_code' => $transaction->currency_code,
             'transaction_date' => $transaction->transaction_date->toDateString(),
             'removed_at' => $transaction->removed_at?->toIso8601String(),
+            'recurrence_source' => $transaction->isGeneratedFromRecurrence()
+                ? [
+                    'id' => (int) $transaction->recurring_transaction_id,
+                    'scheduled_date' => $transaction->recurrence_scheduled_date?->toDateString(),
+                ]
+                : null,
             'financial_account' => [
                 'id' => $transaction->financialAccount->id,
                 'name' => $transaction->financialAccount->name,

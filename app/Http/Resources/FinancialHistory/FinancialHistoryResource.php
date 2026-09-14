@@ -41,6 +41,12 @@ final class FinancialHistoryResource extends JsonResource
             'status' => $transaction->status->value,
             'description' => $transaction->description,
             'notes' => $transaction->notes,
+            'recurrence_source' => $transaction->isGeneratedFromRecurrence()
+                ? [
+                    'id' => (int) $transaction->recurring_transaction_id,
+                    'scheduled_date' => $transaction->recurrence_scheduled_date?->toDateString(),
+                ]
+                : null,
             'financial_account' => $this->accountSummary($transaction->financialAccount),
             'category' => [
                 'id' => $transaction->category?->id,

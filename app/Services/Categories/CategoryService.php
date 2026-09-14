@@ -13,6 +13,7 @@ use App\Exceptions\Categories\CategoryNameConflictException;
 use App\Exceptions\Categories\CategoryStateException;
 use App\Models\Category;
 use App\Models\User;
+use App\Services\RecurringTransactions\RecurringTransactionService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -130,6 +131,9 @@ final class CategoryService
             $category->status = CategoryStatus::Archived;
             $category->archived_at = now();
             $category->save();
+
+            // Archiving an association pauses its active recurring rules without touching history.
+            app(RecurringTransactionService::class)->pauseForArchivedCategory((int) $category->id);
 
             return $category;
         });
