@@ -66,12 +66,8 @@ final class TransferService
                         'removed_at' => null,
                     ]);
 
-                    foreach ([$source, $destination] as $account) {
-                        $account->has_financial_movements = true;
-                        $account->save();
-                    }
-
-                    app(TransferBalanceReconciler::class)->reconcile(null, $transfer);
+                    $reconciler = app(TransferBalanceReconciler::class);
+                    $reconciler->reconcile(null, $transfer, true);
 
                     return ['transfer_id' => $transfer->id, 'status' => 201];
                 },
@@ -174,14 +170,7 @@ final class TransferService
                 }
                 $locked->save();
 
-                foreach ([$source, $destination] as $account) {
-                    if ($account instanceof FinancialAccount) {
-                        $account->has_financial_movements = true;
-                        $account->save();
-                    }
-                }
-
-                app(TransferBalanceReconciler::class)->reconcile($before, $locked);
+                app(TransferBalanceReconciler::class)->reconcile($before, $locked, true);
 
                 $meta = [];
                 if ($locked->status === TransferStatus::Effective && TransferDateRange::isFuture($locked->transfer_date)) {

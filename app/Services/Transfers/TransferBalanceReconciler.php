@@ -18,20 +18,32 @@ final class TransferBalanceReconciler
      *
      * @return array<int, int> proposed balances keyed by account identifier
      */
-    public function reconcile(?Transfer $previous, ?Transfer $result): array
+    public function reconcile(?Transfer $previous, ?Transfer $result, bool $markFinancialMovements = false): array
     {
         $effects = $this->effects($previous, $result);
-        if ($effects === []) {
+        $accountIds = array_keys($effects);
+        if ($markFinancialMovements && $result instanceof Transfer) {
+            $accountIds[] = (int) $result->source_financial_account_id;
+            $accountIds[] = (int) $result->destination_financial_account_id;
+        }
+        if ($accountIds === []) {
             return [];
         }
 
         /** @var Collection<int, FinancialAccount> $accounts */
         $accounts = FinancialAccount::query()
-            ->whereIn('id', array_keys($effects))
+            ->whereIn('id', array_unique($accountIds))
             ->orderBy('id')
             ->lockForUpdate()
             ->get()
             ->keyBy('id');
+
+        if ($markFinancialMovements) {
+            foreach ($accounts as $account) {
+                $account->has_financial_movements = true;
+                $account->save();
+            }
+        }
 
         $proposed = [];
         foreach ($accounts as $accountId => $account) {

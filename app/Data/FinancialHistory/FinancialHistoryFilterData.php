@@ -15,6 +15,8 @@ final readonly class FinancialHistoryFilterData
         public ?int $financialAccountId = null,
         public ?TransactionStatus $status = null,
         public ?string $search = null,
+        public ?int $categoryId = null,
+        public string $view = 'active',
         public int $page = 1,
         public int $perPage = 50,
     ) {}
@@ -26,7 +28,10 @@ final readonly class FinancialHistoryFilterData
 
     public function includesTransfers(): bool
     {
-        return $this->movementKind !== 'income' && $this->movementKind !== 'expense';
+        return $this->view === 'active'
+            && $this->categoryId === null
+            && $this->movementKind !== 'income'
+            && $this->movementKind !== 'expense';
     }
 
     public function transactionType(): ?string

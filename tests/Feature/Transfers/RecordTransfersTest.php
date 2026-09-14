@@ -35,6 +35,8 @@ final class RecordTransfersTest extends TransferFeatureTestCase
         self::assertSame(1, Transfer::count());
         self::assertSame(400_000, $source->refresh()->current_balance_centavos);
         self::assertSame(300_000, $destination->refresh()->current_balance_centavos);
+        self::assertTrue($source->has_financial_movements);
+        self::assertTrue($destination->has_financial_movements);
         self::assertSame(700_000, $source->current_balance_centavos + $destination->current_balance_centavos);
     }
 

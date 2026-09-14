@@ -82,13 +82,16 @@ final class FinancialHistoryService
     {
         $transactions = DB::table('transactions')
             ->where('transactions.user_id', $user->id)
-            ->whereNull('transactions.removed_at')
             ->selectRaw("'transaction' as entry_source, transactions.id as movement_id, transactions.transaction_date as movement_date");
 
         $transfers = DB::table('transfers')
             ->where('transfers.user_id', $user->id)
             ->whereNull('transfers.removed_at')
             ->selectRaw("'transfer' as entry_source, transfers.id as movement_id, transfers.transfer_date as movement_date");
+
+        $filters->view === 'removed'
+            ? $transactions->whereNotNull('transactions.removed_at')
+            : $transactions->whereNull('transactions.removed_at');
 
         if ($filters->from !== null) {
             $transactions->whereDate('transactions.transaction_date', '>=', $filters->from);
@@ -112,6 +115,9 @@ final class FinancialHistoryService
                 $query->where('transfers.source_financial_account_id', $filters->financialAccountId)
                     ->orWhere('transfers.destination_financial_account_id', $filters->financialAccountId);
             });
+        }
+        if ($filters->categoryId !== null) {
+            $transactions->where('transactions.category_id', $filters->categoryId);
         }
         if ($filters->transactionType() !== null) {
             $transactions->where('transactions.type', $filters->transactionType());

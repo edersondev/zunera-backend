@@ -79,6 +79,55 @@ final class ListFinancialHistoryTest extends TestCase
     }
 
     #[Test]
+    public function legacy_transaction_filters_and_removed_view_keep_their_existing_behavior(): void
+    {
+        $user = $this->signIn();
+        $account = FinancialAccount::factory()->create(['user_id' => $user->id]);
+        $incomeCategory = Category::factory()->create([
+            'user_id' => $user->id,
+            'classification' => CategoryClassification::Income,
+        ]);
+        $expenseCategory = Category::factory()->create([
+            'user_id' => $user->id,
+            'classification' => CategoryClassification::Expense,
+        ]);
+        $income = Transaction::factory()->create([
+            'user_id' => $user->id,
+            'financial_account_id' => $account->id,
+            'category_id' => $incomeCategory->id,
+            'type' => 'income',
+        ]);
+        $expense = Transaction::factory()->create([
+            'user_id' => $user->id,
+            'financial_account_id' => $account->id,
+            'category_id' => $expenseCategory->id,
+            'type' => 'expense',
+        ]);
+        $removed = Transaction::factory()->removed()->create([
+            'user_id' => $user->id,
+            'financial_account_id' => $account->id,
+            'category_id' => $expenseCategory->id,
+            'type' => 'expense',
+        ]);
+        Transfer::factory()->create([
+            'user_id' => $user->id,
+            'source_financial_account_id' => $account->id,
+            'destination_financial_account_id' => FinancialAccount::factory()->create(['user_id' => $user->id])->id,
+        ]);
+
+        $this->getJson('/api/v1/financial-history?type=income')->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $income->id);
+        $this->getJson("/api/v1/financial-history?category_id={$expenseCategory->id}")->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $expense->id);
+        $this->getJson('/api/v1/financial-history?view=removed')->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $removed->id)
+            ->assertJsonPath('data.0.movement_kind', 'expense');
+    }
+
+    #[Test]
     public function mixed_history_is_owner_scoped_and_privacy_safe(): void
     {
         $user = $this->signIn();
