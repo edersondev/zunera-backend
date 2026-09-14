@@ -87,7 +87,7 @@ final class ListFinancialHistoryTest extends TestCase
             'user_id' => $user->id,
             'classification' => CategoryClassification::Income,
         ]);
-        $expenseCategory = Category::factory()->create([
+        $expenseCategory = Category::factory()->archived()->create([
             'user_id' => $user->id,
             'classification' => CategoryClassification::Expense,
         ]);
@@ -120,11 +120,14 @@ final class ListFinancialHistoryTest extends TestCase
             ->assertJsonPath('data.0.id', $income->id);
         $this->getJson("/api/v1/financial-history?category_id={$expenseCategory->id}")->assertOk()
             ->assertJsonPath('meta.total', 1)
-            ->assertJsonPath('data.0.id', $expense->id);
+            ->assertJsonPath('data.0.id', $expense->id)
+            ->assertJsonPath('data.0.category.status', 'archived');
         $this->getJson('/api/v1/financial-history?view=removed')->assertOk()
             ->assertJsonPath('meta.total', 1)
             ->assertJsonPath('data.0.id', $removed->id)
             ->assertJsonPath('data.0.movement_kind', 'expense');
+        $this->getJson('/api/v1/financial-history?category_id=999999')->assertNotFound();
+        $this->getJson('/api/v1/financial-history?category_id='.Category::factory()->create()->id)->assertNotFound();
     }
 
     #[Test]

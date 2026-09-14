@@ -46,6 +46,7 @@ final class FinancialHistoryResource extends JsonResource
                 'id' => $transaction->category?->id,
                 'name' => $transaction->category?->name,
                 'classification' => $transaction->category?->classification->value,
+                'status' => $transaction->category?->status->value,
             ],
         ];
     }

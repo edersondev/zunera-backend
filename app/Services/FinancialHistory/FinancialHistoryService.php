@@ -6,6 +6,7 @@ namespace App\Services\FinancialHistory;
 
 use App\Data\FinancialHistory\FinancialHistoryFilterData;
 use App\Http\Resources\FinancialHistory\FinancialHistoryResource;
+use App\Models\Category;
 use App\Models\FinancialAccount;
 use App\Models\Transaction;
 use App\Models\Transfer;
@@ -35,6 +36,9 @@ final class FinancialHistoryService
         }
         if ($filters->financialAccountId !== null) {
             $this->ownedAccount($user, $filters->financialAccountId);
+        }
+        if ($filters->categoryId !== null) {
+            $this->availableCategory($user, $filters->categoryId);
         }
 
         $movements = $this->movementKeys($user, $filters);
@@ -187,5 +191,22 @@ final class FinancialHistoryService
         }
 
         return $account;
+    }
+
+    private function availableCategory(User $user, int $categoryId): Category
+    {
+        $category = Category::query()
+            ->where('id', $categoryId)
+            ->where(function ($query) use ($user): void {
+                $query->where('origin', 'system')->orWhere(function ($personal) use ($user): void {
+                    $personal->where('origin', 'personal')->where('user_id', $user->id);
+                });
+            })
+            ->first();
+        if (! $category instanceof Category) {
+            throw new NotFoundHttpException('Category not found or not accessible to the signed-in user.');
+        }
+
+        return $category;
     }
 }
