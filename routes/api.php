@@ -5,7 +5,9 @@ use App\Http\Controllers\Api\V1\AuthMailDeliveryEventController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\FinancialAccountController;
 use App\Http\Controllers\Api\V1\FinancialAccountSummaryController;
+use App\Http\Controllers\Api\V1\FinancialHistoryController;
 use App\Http\Controllers\Api\V1\TransactionController;
+use App\Http\Controllers\Api\V1\TransferController;
 use Illuminate\Support\Facades\Route;
 
 Route::prefix('v1')->group(function (): void {
@@ -41,5 +43,14 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('/transactions/{transaction_id}', [TransactionController::class, 'update'])->whereNumber('transaction_id');
         Route::post('/transactions/{transaction_id}/remove', [TransactionController::class, 'remove'])->whereNumber('transaction_id');
         Route::post('/transactions/{transaction_id}/restore', [TransactionController::class, 'restore'])->whereNumber('transaction_id');
+
+        Route::get('/transfers', [TransferController::class, 'index']);
+        Route::post('/transfers', [TransferController::class, 'store']);
+        Route::get('/transfers/{transfer_id}', [TransferController::class, 'show'])->whereNumber('transfer_id');
+        Route::patch('/transfers/{transfer_id}', [TransferController::class, 'update'])->whereNumber('transfer_id');
+        Route::post('/transfers/{transfer_id}/remove', [TransferController::class, 'remove'])->whereNumber('transfer_id');
+        Route::post('/transfers/{transfer_id}/restore', [TransferController::class, 'restore'])->whereNumber('transfer_id');
+
+        Route::get('/financial-history', [FinancialHistoryController::class, 'index']);
     });
 });
