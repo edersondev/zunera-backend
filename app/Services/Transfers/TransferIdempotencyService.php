@@ -15,13 +15,26 @@ final class TransferIdempotencyService
      */
     public function execute(int $userId, string $key, string $operation, string $fingerprint, callable $callback): array
     {
-        $existing = DB::table('transfer_mutation_requests')
-            ->where('user_id', $userId)
-            ->where('idempotency_key', $key)
-            ->lockForUpdate()
-            ->first();
+        $now = now();
+        $claimed = DB::table('transfer_mutation_requests')->insertOrIgnore([
+            'user_id' => $userId,
+            'idempotency_key' => $key,
+            'operation' => $operation,
+            'request_fingerprint' => $fingerprint,
+            'created_at' => $now,
+            'updated_at' => $now,
+        ]);
 
-        if ($existing !== null) {
+        if ($claimed === 0) {
+            $existing = DB::table('transfer_mutation_requests')
+                ->where('user_id', $userId)
+                ->where('idempotency_key', $key)
+                ->lockForUpdate()
+                ->first();
+
+            if ($existing === null) {
+                throw new \LogicException('Transfer mutation key claim could not be read.');
+            }
             if (! hash_equals((string) $existing->request_fingerprint, $fingerprint)) {
                 throw TransferStateException::idempotencyKeyReused();
             }
@@ -40,18 +53,16 @@ final class TransferIdempotencyService
         $result = $callback();
         $meta = $result['meta'] ?? [];
 
-        DB::table('transfer_mutation_requests')->insert([
-            'user_id' => $userId,
-            'idempotency_key' => $key,
-            'operation' => $operation,
-            'request_fingerprint' => $fingerprint,
-            'transfer_id' => $result['transfer_id'],
-            'response_status' => $result['status'],
-            'response_body' => json_encode(['meta' => $meta], JSON_THROW_ON_ERROR),
-            'completed_at' => now(),
-            'created_at' => now(),
-            'updated_at' => now(),
-        ]);
+        DB::table('transfer_mutation_requests')
+            ->where('user_id', $userId)
+            ->where('idempotency_key', $key)
+            ->update([
+                'transfer_id' => $result['transfer_id'],
+                'response_status' => $result['status'],
+                'response_body' => json_encode(['meta' => $meta], JSON_THROW_ON_ERROR),
+                'completed_at' => now(),
+                'updated_at' => now(),
+            ]);
 
         return [
             'transfer_id' => $result['transfer_id'],
