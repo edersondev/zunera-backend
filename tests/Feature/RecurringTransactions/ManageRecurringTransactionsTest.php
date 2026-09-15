@@ -102,6 +102,32 @@ final class ManageRecurringTransactionsTest extends RecurringTransactionFeatureT
     }
 
     #[Test]
+    public function shortening_an_active_rule_to_a_past_end_date_ends_it_immediately(): void
+    {
+        $user = $this->signInUser();
+        $today = RecurringDateRange::businessDate();
+        $rule = $this->rule($user, [
+            'start_date' => CarbonImmutable::parse($today)->subDays(14)->toDateString(),
+            'eligibility_starts_on' => CarbonImmutable::parse($today)->subDays(14)->toDateString(),
+            'schedule_cursor' => $today,
+        ]);
+
+        $pastEndDate = CarbonImmutable::parse($today)->subDay()->toDateString();
+        $this->patchJson('/api/v1/recurring-transactions/'.$rule->id, [
+            'end_date' => $pastEndDate,
+        ], ['Idempotency-Key' => 'end-by-past-date'])
+            ->assertOk()
+            ->assertJsonPath('data.end_date', $pastEndDate)
+            ->assertJsonPath('data.state', 'ended')
+            ->assertJsonPath('data.next_expected_occurrence', null);
+
+        self::assertNotNull($rule->refresh()->ended_at);
+        $this->postJson('/api/v1/recurring-transactions/'.$rule->id.'/pause', [], ['Idempotency-Key' => 'pause-ended-by-date'])
+            ->assertStatus(409)
+            ->assertJsonPath('code', 'recurrence_ended');
+    }
+
+    #[Test]
     public function lifecycle_conflicts_return_documented_codes(): void
     {
         $user = $this->signInUser();

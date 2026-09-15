@@ -47,6 +47,27 @@ final class RecurringDateRange
         return CarbonImmutable::now(self::BUSINESS_TIMEZONE)->toDateString();
     }
 
+    /**
+     * Resolve a date supplied to the due processor without allowing it to
+     * create occurrences ahead of Zunera's current business date.
+     */
+    public static function processingDate(?string $value): string
+    {
+        $businessDate = self::businessDate();
+        if ($value === null) {
+            return $businessDate;
+        }
+
+        $date = self::normalize($value, 'date');
+        if ($date > $businessDate) {
+            throw ValidationException::withMessages([
+                'date' => ['Due processing cannot run for a future business date.'],
+            ]);
+        }
+
+        return $date;
+    }
+
     public static function isFuture(string|DateTimeInterface $date): bool
     {
         $value = $date instanceof DateTimeInterface

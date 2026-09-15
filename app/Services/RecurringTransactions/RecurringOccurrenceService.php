@@ -23,7 +23,7 @@ final class RecurringOccurrenceService
     /** @return array{processed: int, created: int, ended: int} */
     public function processDueRules(?string $businessDate = null): array
     {
-        $today = $businessDate ?? RecurringDateRange::businessDate();
+        $today = RecurringDateRange::processingDate($businessDate);
 
         $ruleIds = RecurringTransaction::query()
             ->active()
@@ -61,7 +61,7 @@ final class RecurringOccurrenceService
     /** Creates every pending occurrence still missing for one rule. Returns created rows. */
     public function processRule(int $ruleId, ?string $businessDate = null): int
     {
-        $today = $businessDate ?? RecurringDateRange::businessDate();
+        $today = RecurringDateRange::processingDate($businessDate);
 
         return DB::transaction(function () use ($ruleId, $today): int {
             $rule = RecurringTransaction::query()->lockForUpdate()->find($ruleId);

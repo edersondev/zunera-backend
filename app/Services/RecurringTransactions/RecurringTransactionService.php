@@ -197,6 +197,11 @@ final class RecurringTransactionService
                     $locked->eligibility_starts_on = $scheduleAnchor;
                     $locked->schedule_cursor = $scheduleAnchor;
                 }
+                if ($endDate !== null && $endDate < RecurringDateRange::businessDate()) {
+                    $locked->state = RecurrenceState::Ended;
+                    $locked->paused_reason = null;
+                    $locked->ended_at = now();
+                }
                 $locked->save();
 
                 return ['recurring_transaction_id' => $locked->id, 'status' => 200];

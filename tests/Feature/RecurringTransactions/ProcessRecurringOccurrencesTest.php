@@ -11,6 +11,7 @@ use App\Models\Transaction;
 use App\Services\RecurringTransactions\RecurringDateRange;
 use App\Services\RecurringTransactions\RecurringOccurrenceService;
 use Carbon\CarbonImmutable;
+use Illuminate\Console\Command;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -235,5 +236,30 @@ final class ProcessRecurringOccurrencesTest extends RecurringTransactionFeatureT
 
         self::assertSame(1, Transaction::query()->count());
         self::assertSame(1, RecurringTransaction::query()->count());
+    }
+
+    #[Test]
+    public function artisan_processor_rejects_future_dates_without_generating_or_ending_rules(): void
+    {
+        $user = $this->signInUser();
+        $account = $this->ownedAccount($user);
+        $category = $this->ownedCategory($user);
+        $today = RecurringDateRange::businessDate();
+        $rule = $this->rule($user, [
+            'financial_account_id' => $account->id,
+            'category_id' => $category->id,
+            'frequency' => RecurrenceFrequency::Weekly,
+            'start_date' => $today,
+            'eligibility_starts_on' => $today,
+            'schedule_cursor' => $today,
+        ]);
+
+        $futureDate = CarbonImmutable::parse($today)->addDay()->toDateString();
+        $this->artisan('recurring:process-due', ['--date' => $futureDate])
+            ->expectsOutput('Due processing cannot run for a future business date.')
+            ->assertExitCode(Command::INVALID);
+
+        self::assertSame(0, Transaction::query()->count());
+        self::assertSame('active', $rule->refresh()->state->value);
     }
 }
