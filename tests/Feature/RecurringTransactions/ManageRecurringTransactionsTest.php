@@ -71,6 +71,37 @@ final class ManageRecurringTransactionsTest extends RecurringTransactionFeatureT
     }
 
     #[Test]
+    public function editing_start_date_reanchors_at_the_current_business_date_without_backfill(): void
+    {
+        $user = $this->signInUser();
+        $account = $this->ownedAccount($user);
+        $category = $this->ownedCategory($user);
+        $today = RecurringDateRange::businessDate();
+        $futureStart = CarbonImmutable::parse($today)->addDays(14)->toDateString();
+        $rule = $this->rule($user, [
+            'financial_account_id' => $account->id,
+            'category_id' => $category->id,
+            'frequency' => RecurrenceFrequency::Weekly,
+            'start_date' => $futureStart,
+            'eligibility_starts_on' => $futureStart,
+            'schedule_cursor' => $futureStart,
+        ]);
+
+        $this->patchJson('/api/v1/recurring-transactions/'.$rule->id, [
+            'start_date' => CarbonImmutable::parse($today)->subDays(21)->toDateString(),
+        ], ['Idempotency-Key' => 'reanchor-start-date'])
+            ->assertOk()
+            ->assertJsonPath('data.start_date', CarbonImmutable::parse($today)->subDays(21)->toDateString())
+            ->assertJsonPath('data.next_expected_occurrence', $today);
+
+        $rule->refresh();
+        self::assertSame($today, $rule->eligibility_starts_on->toDateString());
+        self::assertSame($today, $rule->schedule_cursor->toDateString());
+        self::assertSame(1, app(RecurringOccurrenceService::class)->processRule($rule->id, $today));
+        self::assertSame($today, Transaction::query()->sole()->transaction_date->toDateString());
+    }
+
+    #[Test]
     public function lifecycle_conflicts_return_documented_codes(): void
     {
         $user = $this->signInUser();

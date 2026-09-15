@@ -188,6 +188,15 @@ final class RecurringTransactionService
                 $locked->category_id = $categoryId;
                 $locked->start_date = $startDate;
                 $locked->end_date = $endDate;
+                if ($data->has('start_date')) {
+                    // A start-date edit only changes future scheduling. Reset the
+                    // watermark to the current business date (or the new future
+                    // start) so an earlier edit cannot backfill elapsed dates and
+                    // a later edit waits for its new anchor.
+                    $scheduleAnchor = max($startDate, RecurringDateRange::businessDate());
+                    $locked->eligibility_starts_on = $scheduleAnchor;
+                    $locked->schedule_cursor = $scheduleAnchor;
+                }
                 $locked->save();
 
                 return ['recurring_transaction_id' => $locked->id, 'status' => 200];
