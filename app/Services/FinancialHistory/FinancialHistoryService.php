@@ -8,9 +8,11 @@ use App\Data\FinancialHistory\FinancialHistoryFilterData;
 use App\Http\Resources\FinancialHistory\FinancialHistoryResource;
 use App\Models\Category;
 use App\Models\FinancialAccount;
+use App\Models\RecurringTransaction;
 use App\Models\Transaction;
 use App\Models\Transfer;
 use App\Models\User;
+use App\Services\RecurringTransactions\RecurringTransactionService;
 use App\Services\Transactions\TransactionTextNormalizer;
 use App\Services\Transfers\TransferTextNormalizer;
 use Illuminate\Database\Query\Builder;
@@ -22,10 +24,15 @@ use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 
 final class FinancialHistoryService
 {
+    public function __construct(
+        private readonly RecurringTransactionService $recurringTransactions,
+    ) {}
+
     /**
      * Mixed income, expense, and transfer projection ordered newest first. One
      * paginated union query keeps same-date ordering and totals exact for 5,000+
-     * movements without loading either side twice.
+     * movements without loading either side twice. The optional recurrence
+     * projection is merged only when explicitly requested.
      *
      * @return LengthAwarePaginator<int, array<string, mixed>>
      */
@@ -42,6 +49,10 @@ final class FinancialHistoryService
         }
 
         $movements = $this->movementKeys($user, $filters);
+        if ($filters->includesRecurring()) {
+            return $this->listIncludingRecurring($user, $filters, $movements);
+        }
+
         $total = $movements->count();
         $keys = $movements
             ->orderByDesc('movement_date')
@@ -52,6 +63,39 @@ final class FinancialHistoryService
         $entries = $this->entriesFor($user, $keys);
 
         return new LengthAwarePaginator($entries, $total, $filters->perPage, $filters->page);
+    }
+
+    /**
+     * Recurrence dates are derived from calendar rules, so the optional mixed
+     * projection merges a bounded prefix from each independently ordered source.
+     * The first page * per-page entries of each source are sufficient to form
+     * the requested global page without loading all ordinary movements.
+     *
+     * @return LengthAwarePaginator<int, array<string, mixed>>
+     */
+    private function listIncludingRecurring(User $user, FinancialHistoryFilterData $filters, Builder $movements): LengthAwarePaginator
+    {
+        $page = max(1, $filters->page);
+        $prefixLimit = $page * $filters->perPage;
+        $movementTotal = $movements->count();
+        $movementKeys = $movements
+            ->orderByDesc('movement_date')
+            ->orderByDesc('movement_id')
+            ->limit($prefixLimit)
+            ->get();
+        $recurringEntries = $this->recurringEntries($user, $filters);
+
+        $entries = $this->orderEntries(
+            collect($this->entriesFor($user, $movementKeys))
+                ->concat($recurringEntries->take($prefixLimit)),
+        )->slice(($page - 1) * $filters->perPage, $filters->perPage)->values()->all();
+
+        return new LengthAwarePaginator(
+            $entries,
+            $movementTotal + $recurringEntries->count(),
+            $filters->perPage,
+            $page,
+        );
     }
 
     /**
@@ -181,6 +225,97 @@ final class FinancialHistoryService
         }
 
         return $entries;
+    }
+
+    /**
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function recurringEntries(User $user, FinancialHistoryFilterData $filters): Collection
+    {
+        $rules = RecurringTransaction::query()
+            ->with(['financialAccount', 'category'])
+            ->where('user_id', $user->id)
+            ->when(
+                $filters->transactionType() !== null,
+                fn ($query) => $query->where('type', $filters->transactionType()),
+            )
+            ->when(
+                $filters->financialAccountId !== null,
+                fn ($query) => $query->where('financial_account_id', $filters->financialAccountId),
+            )
+            ->when(
+                $filters->categoryId !== null,
+                fn ($query) => $query->where('category_id', $filters->categoryId),
+            )
+            ->when(
+                $filters->search !== null && $filters->search !== '',
+                function ($query) use ($filters): void {
+                    $query->where(function ($textQuery) use ($filters): void {
+                        $textQuery
+                            ->where('description', 'like', '%'.$filters->search.'%')
+                            ->orWhere('notes', 'like', '%'.$filters->search.'%');
+                    });
+                },
+            )
+            ->orderBy('id')
+            ->get();
+
+        $this->recurringTransactions->decorateForProjection($rules);
+
+        return $rules
+            ->filter(function (RecurringTransaction $rule) use ($filters): bool {
+                $date = $rule->getAttribute('next_expected_occurrence');
+                if (! is_string($date) || $date === '') {
+                    return $filters->from === null && $filters->to === null;
+                }
+
+                return ($filters->from === null || $date >= $filters->from)
+                    && ($filters->to === null || $date <= $filters->to);
+            })
+            ->sort(function (RecurringTransaction $left, RecurringTransaction $right): int {
+                return $this->compareHistoryPosition(
+                    $left->getAttribute('next_expected_occurrence'),
+                    $left->id,
+                    $right->getAttribute('next_expected_occurrence'),
+                    $right->id,
+                );
+            })
+            ->map(fn (RecurringTransaction $rule): array => (new FinancialHistoryResource($rule))->resolve())
+            ->values();
+    }
+
+    /**
+     * @param  Collection<int, array<string, mixed>>  $entries
+     * @return Collection<int, array<string, mixed>>
+     */
+    private function orderEntries(Collection $entries): Collection
+    {
+        return $entries->sort(function (array $left, array $right): int {
+            return $this->compareHistoryPosition(
+                $left['movement_date'] ?? null,
+                (int) $left['id'],
+                $right['movement_date'] ?? null,
+                (int) $right['id'],
+            );
+        })->values();
+    }
+
+    private function compareHistoryPosition(mixed $leftDate, int $leftId, mixed $rightDate, int $rightId): int
+    {
+        $left = is_string($leftDate) && $leftDate !== '' ? $leftDate : null;
+        $right = is_string($rightDate) && $rightDate !== '' ? $rightDate : null;
+
+        if ($left === null || $right === null) {
+            if ($left === $right) {
+                return $rightId <=> $leftId;
+            }
+
+            return $left === null ? 1 : -1;
+        }
+
+        $byDate = strcmp($right, $left);
+
+        return $byDate !== 0 ? $byDate : $rightId <=> $leftId;
     }
 
     private function ownedAccount(User $user, int $accountId): FinancialAccount
