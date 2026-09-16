@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\FinancialHistory;
 
+use App\Http\Resources\RecurringTransactions\RecurringTransactionResource;
 use App\Models\FinancialAccount;
+use App\Models\RecurringTransaction;
 use App\Models\Transaction;
 use App\Models\Transfer;
 use Illuminate\Http\Request;
@@ -15,7 +17,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Transfers use movement_kind = transfer, carry both account sides, never carry a
  * category, and never participate in income/expense signage.
  *
- * @mixin Transaction|Transfer
+ * @mixin Transaction|Transfer|RecurringTransaction
  */
 final class FinancialHistoryResource extends JsonResource
 {
@@ -24,9 +26,11 @@ final class FinancialHistoryResource extends JsonResource
     {
         $movement = $this->resource;
 
-        return $movement instanceof Transfer
-            ? $this->transferEntry($movement)
-            : $this->transactionEntry($movement);
+        return match (true) {
+            $movement instanceof Transfer => $this->transferEntry($movement),
+            $movement instanceof RecurringTransaction => $this->recurringEntry($movement),
+            default => $this->transactionEntry($movement),
+        };
     }
 
     /** @return array<string, mixed> */
@@ -72,6 +76,16 @@ final class FinancialHistoryResource extends JsonResource
             'source_financial_account' => $this->accountSummary($transfer->sourceAccount),
             'destination_financial_account' => $this->accountSummary($transfer->destinationAccount),
             'category' => null,
+        ];
+    }
+
+    /** @return array<string, mixed> */
+    private function recurringEntry(RecurringTransaction $rule): array
+    {
+        return [
+            'movement_kind' => 'recurring',
+            'movement_date' => $rule->getAttribute('next_expected_occurrence'),
+            ...(new RecurringTransactionResource($rule))->resolve(),
         ];
     }
 

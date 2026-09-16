@@ -90,7 +90,7 @@ final class RecurringTransactionService
             throw new NotFoundHttpException('Recurring transaction not found or not accessible to the signed-in user.');
         }
 
-        $this->decorate(new Collection([$rule]));
+        $this->decorateForProjection(new Collection([$rule]));
 
         return $rule;
     }
@@ -115,7 +115,7 @@ final class RecurringTransactionService
             ->orderBy('id')
             ->get();
 
-        $this->decorate($rules);
+        $this->decorateForProjection($rules);
 
         $ordered = $rules->sortBy(static function (RecurringTransaction $rule): string {
             $next = $rule->getAttribute('next_expected_occurrence');
@@ -332,7 +332,7 @@ final class RecurringTransactionService
     }
 
     /** Adds the derived next-date and occurrence-count projections used by list and detail responses. */
-    private function decorate(Collection $rules): void
+    public function decorateForProjection(Collection $rules): void
     {
         if ($rules->isEmpty()) {
             return;

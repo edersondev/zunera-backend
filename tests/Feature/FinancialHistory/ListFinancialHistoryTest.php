@@ -5,10 +5,12 @@ declare(strict_types=1);
 namespace Tests\Feature\FinancialHistory;
 
 use App\Enums\Categories\CategoryClassification;
+use App\Enums\RecurringTransactions\RecurrenceFrequency;
 use App\Enums\Transactions\TransactionStatus;
 use App\Http\Controllers\Api\V1\TransactionController;
 use App\Models\Category;
 use App\Models\FinancialAccount;
+use App\Models\RecurringTransaction;
 use App\Models\Transaction;
 use App\Models\Transfer;
 use App\Models\User;
@@ -76,6 +78,53 @@ final class ListFinancialHistoryTest extends TestCase
             ->assertJsonPath('meta.total', 1)->assertJsonPath('data.0.movement_kind', 'transfer');
         $this->getJson('/api/v1/financial-history?status=pending')->assertOk()->assertJsonPath('meta.total', 0);
         $this->getJson('/api/v1/financial-history?per_page=51')->assertUnprocessable()->assertJsonValidationErrors('per_page');
+    }
+
+    #[Test]
+    public function optional_recurring_include_merges_rules_by_next_occurrence_without_changing_default_history(): void
+    {
+        $user = $this->signIn();
+        $account = FinancialAccount::factory()->create(['user_id' => $user->id]);
+        $category = Category::factory()->create([
+            'user_id' => $user->id,
+            'classification' => CategoryClassification::Expense,
+        ]);
+        $transaction = Transaction::factory()->create([
+            'user_id' => $user->id,
+            'financial_account_id' => $account->id,
+            'category_id' => $category->id,
+            'type' => 'expense',
+            'transaction_date' => '2026-09-10',
+        ]);
+        $rule = RecurringTransaction::factory()->create([
+            'user_id' => $user->id,
+            'financial_account_id' => $account->id,
+            'category_id' => $category->id,
+            'type' => 'expense',
+            'description' => 'Academia',
+            'frequency' => RecurrenceFrequency::Monthly,
+            'start_date' => '2026-10-05',
+            'eligibility_starts_on' => '2026-10-05',
+            'schedule_cursor' => '2026-10-05',
+        ]);
+
+        $this->getJson('/api/v1/financial-history')->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $transaction->id);
+
+        $this->getJson('/api/v1/financial-history?include=recurring')->assertOk()
+            ->assertJsonPath('meta.total', 2)
+            ->assertJsonPath('data.0.movement_kind', 'recurring')
+            ->assertJsonPath('data.0.id', $rule->id)
+            ->assertJsonPath('data.0.movement_date', '2026-10-05')
+            ->assertJsonPath('data.0.next_expected_occurrence', '2026-10-05')
+            ->assertJsonPath('data.1.id', $transaction->id);
+
+        $this->getJson('/api/v1/financial-history?include=recurring&movement_kind=transfer')->assertOk()
+            ->assertJsonPath('meta.total', 0);
+        $this->getJson('/api/v1/financial-history?include=recurring&from=2026-10-05&to=2026-10-05')->assertOk()
+            ->assertJsonPath('meta.total', 1)
+            ->assertJsonPath('data.0.id', $rule->id);
     }
 
     #[Test]
