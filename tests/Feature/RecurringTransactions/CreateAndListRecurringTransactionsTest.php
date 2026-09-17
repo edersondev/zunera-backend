@@ -63,6 +63,30 @@ final class CreateAndListRecurringTransactionsTest extends RecurringTransactionF
     }
 
     #[Test]
+    public function rule_with_an_elapsed_end_date_is_created_ended_and_cannot_be_revived(): void
+    {
+        $user = $this->signInUser();
+        $account = $this->ownedAccount($user);
+        $category = $this->ownedCategory($user);
+        $endDate = CarbonImmutable::parse(RecurringDateRange::businessDate())->subDay()->toDateString();
+        $startDate = CarbonImmutable::parse($endDate)->subMonth()->toDateString();
+
+        $created = $this->postJson('/api/v1/recurring-transactions', $this->payload($account, $category, [
+            'start_date' => $startDate,
+            'end_date' => $endDate,
+        ]), ['Idempotency-Key' => 'elapsed-rule'])
+            ->assertCreated()
+            ->assertJsonPath('data.state', 'ended')
+            ->assertJsonPath('data.next_expected_occurrence', null);
+
+        $this->patchJson('/api/v1/recurring-transactions/'.$created->json('data.id'), [
+            'end_date' => RecurringDateRange::businessDate(),
+        ], ['Idempotency-Key' => 'revive-elapsed-rule'])
+            ->assertConflict()
+            ->assertJsonPath('code', 'recurrence_ended');
+    }
+
+    #[Test]
     public function list_supports_combined_filters_and_orders_rules_with_a_next_date_first(): void
     {
         $user = $this->signInUser();

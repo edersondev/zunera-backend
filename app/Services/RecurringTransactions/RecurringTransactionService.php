@@ -51,7 +51,9 @@ final class RecurringTransactionService
             $result = $this->idempotency->execute($user->id, $idempotencyKey, 'create', $fingerprint, function () use ($user, $data): array {
                 $account = $this->ownedAccount($user, $data->financialAccountId, true);
                 $category = $this->availableCategory($user, $data->categoryId, true, $data->type);
-                $eligibilityStart = max($data->startDate, RecurringDateRange::businessDate());
+                $businessDate = RecurringDateRange::businessDate();
+                $eligibilityStart = max($data->startDate, $businessDate);
+                $hasEnded = $data->endDate !== null && $data->endDate < $businessDate;
 
                 $rule = RecurringTransaction::query()->create([
                     'user_id' => $user->id,
@@ -65,11 +67,11 @@ final class RecurringTransactionService
                     'frequency' => $data->frequency,
                     'start_date' => $data->startDate,
                     'end_date' => $data->endDate,
-                    'state' => RecurrenceState::Active,
+                    'state' => $hasEnded ? RecurrenceState::Ended : RecurrenceState::Active,
                     'paused_reason' => null,
                     'eligibility_starts_on' => $eligibilityStart,
                     'schedule_cursor' => $eligibilityStart,
-                    'ended_at' => null,
+                    'ended_at' => $hasEnded ? now() : null,
                 ]);
 
                 return ['recurring_transaction_id' => $rule->id, 'status' => 201];

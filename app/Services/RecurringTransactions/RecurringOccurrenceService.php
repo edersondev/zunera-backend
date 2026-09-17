@@ -6,6 +6,8 @@ namespace App\Services\RecurringTransactions;
 
 use App\Enums\RecurringTransactions\RecurrenceState;
 use App\Enums\Transactions\TransactionStatus;
+use App\Models\Category;
+use App\Models\FinancialAccount;
 use App\Models\RecurringTransaction;
 use App\Models\Transaction;
 use Illuminate\Database\UniqueConstraintViolationException;
@@ -123,6 +125,12 @@ final class RecurringOccurrenceService
                 'recurring_transaction_id' => $rule->id,
                 'recurrence_scheduled_date' => $scheduledDate,
             ]);
+            FinancialAccount::query()
+                ->whereKey($rule->financial_account_id)
+                ->update(['has_financial_movements' => true]);
+            Category::query()
+                ->whereKey($rule->category_id)
+                ->update(['has_financial_transactions' => true]);
         } catch (UniqueConstraintViolationException) {
             // A concurrent processor created the same rule/date pair first.
             return false;

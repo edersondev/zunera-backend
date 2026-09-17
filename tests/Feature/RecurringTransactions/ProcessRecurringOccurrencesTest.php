@@ -54,6 +54,9 @@ final class ProcessRecurringOccurrencesTest extends RecurringTransactionFeatureT
             self::assertSame(25_000, $occurrence->amount_centavos);
         }
 
+        self::assertTrue($account->refresh()->has_financial_movements);
+        self::assertTrue($category->refresh()->has_financial_transactions);
+
         // Balances still ignore pending occurrences.
         self::assertSame(500_000, $account->refresh()->current_balance_centavos);
 
