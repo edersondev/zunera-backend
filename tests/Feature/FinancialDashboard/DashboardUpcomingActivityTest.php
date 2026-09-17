@@ -19,19 +19,19 @@ final class DashboardUpcomingActivityTest extends TestCase
     use RefreshDatabase;
 
     #[Test]
-    public function the_horizon_is_the_next_thirty_calendar_days_after_today(): void
+    public function the_horizon_includes_today_and_the_following_twenty_nine_calendar_days(): void
     {
         $this->dashboardSignIn();
 
         $this->getJson('/api/v1/financial-dashboard/upcoming-activity')
             ->assertOk()
-            ->assertJsonPath('meta.from', '2026-09-18')
-            ->assertJsonPath('meta.to', '2026-10-17')
+            ->assertJsonPath('meta.from', '2026-09-17')
+            ->assertJsonPath('meta.to', '2026-10-16')
             ->assertJsonPath('data', []);
     }
 
     #[Test]
-    public function only_future_pending_transactions_are_expected(): void
+    public function current_and_future_pending_transactions_are_expected(): void
     {
         $user = $this->dashboardSignIn();
         $account = $this->dashboardAccount($user, ['name' => 'Conta corrente']);
@@ -69,15 +69,16 @@ final class DashboardUpcomingActivityTest extends TestCase
         $response = $this->getJson('/api/v1/financial-dashboard/upcoming-activity')->assertOk();
         $data = $response->json('data');
 
-        self::assertCount(1, $data);
+        self::assertCount(2, $data);
         self::assertSame('pending_transaction', $data[0]['source_kind']);
-        $response->assertJsonPath('data.0.expected_date', '2026-09-25')
+        $response->assertJsonPath('data.0.expected_date', '2026-09-17')
             ->assertJsonPath('data.0.type', 'expense')
             ->assertJsonPath('data.0.state', 'expected')
-            ->assertJsonPath('data.0.amount.amount_centavos', 21_500)
+            ->assertJsonPath('data.0.amount.amount_centavos', 11_000)
             ->assertJsonPath('data.0.account.name', 'Conta corrente')
             ->assertJsonPath('data.0.category.name', 'Contas')
-            ->assertJsonPath('data.0.description', 'Condomínio');
+            ->assertJsonPath('data.1.expected_date', '2026-09-25')
+            ->assertJsonPath('data.1.description', 'Condomínio');
     }
 
     #[Test]
@@ -95,9 +96,9 @@ final class DashboardUpcomingActivityTest extends TestCase
             'amount_centavos' => 12_000,
             'description' => 'Academia',
             'frequency' => RecurrenceFrequency::Weekly,
-            'start_date' => '2026-09-19',
-            'eligibility_starts_on' => '2026-09-19',
-            'schedule_cursor' => '2026-09-19',
+            'start_date' => '2026-09-17',
+            'eligibility_starts_on' => '2026-09-17',
+            'schedule_cursor' => '2026-09-17',
             'state' => RecurrenceState::Active,
         ]);
 
@@ -105,7 +106,7 @@ final class DashboardUpcomingActivityTest extends TestCase
         $data = $response->json('data');
 
         self::assertSame(
-            ['2026-09-19', '2026-09-26', '2026-10-03', '2026-10-10', '2026-10-17'],
+            ['2026-09-17', '2026-09-24', '2026-10-01', '2026-10-08', '2026-10-15'],
             array_column($data, 'expected_date'),
         );
         self::assertSame('recurring_occurrence', $data[0]['source_kind']);

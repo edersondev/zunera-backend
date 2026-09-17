@@ -16,7 +16,8 @@ use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
 /**
- * Future-only expected activity inside the fixed next-30-calendar-day horizon.
+ * Current and future expected activity inside the fixed, inclusive
+ * 30-calendar-day horizon.
  * Eligible recurrence dates are projected as expected dates, and a rule date
  * already represented by a generated transaction is suppressed so an occurrence
  * appears once. Nothing here ever reaches realized totals.
@@ -33,8 +34,8 @@ final class DashboardUpcomingActivityService
     public function upcoming(User $user, ?string $businessDate = null): array
     {
         $business = $businessDate ?? DashboardPeriodData::businessDate();
-        $from = CarbonImmutable::parse($business)->addDay()->toDateString();
-        $to = CarbonImmutable::parse($business)->addDays(self::HORIZON_DAYS)->toDateString();
+        $from = CarbonImmutable::parse($business)->toDateString();
+        $to = CarbonImmutable::parse($business)->addDays(self::HORIZON_DAYS - 1)->toDateString();
 
         $items = [];
         foreach ($this->pendingTransactions($user, $from, $to) as $transaction) {

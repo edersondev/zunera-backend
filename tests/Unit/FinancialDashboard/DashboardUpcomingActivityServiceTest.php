@@ -22,14 +22,14 @@ final class DashboardUpcomingActivityServiceTest extends TestCase
     use RefreshDatabase;
 
     #[Test]
-    public function its_horizon_starts_the_day_after_the_business_date_and_lasts_thirty_days(): void
+    public function its_horizon_includes_business_date_and_lasts_thirty_days(): void
     {
         $user = User::factory()->create();
 
         $projection = $this->service()->upcoming($user, '2026-09-17');
 
-        self::assertSame('2026-09-18', $projection['from']);
-        self::assertSame('2026-10-17', $projection['to']);
+        self::assertSame('2026-09-17', $projection['from']);
+        self::assertSame('2026-10-16', $projection['to']);
         self::assertSame([], $projection['items']);
     }
 
@@ -75,14 +75,13 @@ final class DashboardUpcomingActivityServiceTest extends TestCase
         // The generated occurrence replaces its rule date, and later eligible
         // dates of the weekly rule keep projecting inside the horizon.
         self::assertSame(
-            ['2026-09-19', '2026-09-26', '2026-10-03', '2026-10-10', '2026-10-17'],
+            ['2026-09-19', '2026-09-26', '2026-10-03', '2026-10-10'],
             $dates,
         );
         self::assertSame(
             [
                 'recurring_occurrence',
                 'pending_transaction',
-                'recurring_occurrence',
                 'recurring_occurrence',
                 'recurring_occurrence',
             ],
