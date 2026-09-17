@@ -29,8 +29,7 @@ final readonly class FinancialHistoryFilterData
 
     public function includesTransfers(): bool
     {
-        return $this->view === 'active'
-            && $this->categoryId === null
+        return $this->categoryId === null
             && $this->movementKind !== 'income'
             && $this->movementKind !== 'expense';
     }

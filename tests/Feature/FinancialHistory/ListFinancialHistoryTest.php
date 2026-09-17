@@ -180,6 +180,47 @@ final class ListFinancialHistoryTest extends TestCase
     }
 
     #[Test]
+    public function removed_view_returns_removed_transactions_and_transfers_from_the_same_history_api(): void
+    {
+        $user = $this->signIn();
+        $source = FinancialAccount::factory()->create(['user_id' => $user->id]);
+        $destination = FinancialAccount::factory()->create(['user_id' => $user->id]);
+        $category = Category::factory()->create([
+            'user_id' => $user->id,
+            'classification' => CategoryClassification::Expense,
+        ]);
+        $transaction = Transaction::factory()->removed()->create([
+            'user_id' => $user->id,
+            'financial_account_id' => $source->id,
+            'category_id' => $category->id,
+            'transaction_date' => '2026-09-10',
+        ]);
+        $transfer = Transfer::factory()->removed()->create([
+            'user_id' => $user->id,
+            'source_financial_account_id' => $source->id,
+            'destination_financial_account_id' => $destination->id,
+            'transfer_date' => '2026-09-11',
+        ]);
+        Transfer::factory()->create([
+            'user_id' => $user->id,
+            'source_financial_account_id' => $source->id,
+            'destination_financial_account_id' => $destination->id,
+            'transfer_date' => '2026-09-12',
+        ]);
+
+        $response = $this->getJson('/api/v1/financial-history?view=removed')->assertOk()
+            ->assertJsonPath('meta.total', 2);
+
+        self::assertSame(
+            [['transfer', $transfer->id], ['expense', $transaction->id]],
+            array_map(fn (array $entry): array => [$entry['movement_kind'], $entry['id']], $response->json('data')),
+        );
+        $response
+            ->assertJsonPath('data.0.source_financial_account.id', $source->id)
+            ->assertJsonPath('data.0.destination_financial_account.id', $destination->id);
+    }
+
+    #[Test]
     public function mixed_history_is_owner_scoped_and_privacy_safe(): void
     {
         $user = $this->signIn();
