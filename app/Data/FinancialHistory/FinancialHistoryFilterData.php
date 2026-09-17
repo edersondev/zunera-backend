@@ -17,6 +17,7 @@ final readonly class FinancialHistoryFilterData
         public ?string $search = null,
         public ?int $categoryId = null,
         public string $view = 'active',
+        public ?string $include = null,
         public int $page = 1,
         public int $perPage = 50,
     ) {}
@@ -32,6 +33,14 @@ final readonly class FinancialHistoryFilterData
             && $this->categoryId === null
             && $this->movementKind !== 'income'
             && $this->movementKind !== 'expense';
+    }
+
+    public function includesRecurring(): bool
+    {
+        return $this->include === 'recurring'
+            && $this->view === 'active'
+            && $this->movementKind !== 'transfer'
+            && $this->status === null;
     }
 
     public function transactionType(): ?string

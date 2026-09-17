@@ -30,6 +30,7 @@ final class ListFinancialHistoryRequest extends FormRequest
             'status' => ['nullable', Rule::enum(TransactionStatus::class)],
             'q' => ['nullable', 'string', 'max:200'],
             'view' => ['nullable', Rule::in(['active', 'removed'])],
+            'include' => ['nullable', Rule::in(['recurring'])],
             'page' => ['nullable', 'integer', 'min:1'],
             'per_page' => ['nullable', 'integer', 'min:1', 'max:50'],
         ];
@@ -48,6 +49,7 @@ final class ListFinancialHistoryRequest extends FormRequest
             search: isset($data['q']) ? trim($data['q']) : null,
             categoryId: isset($data['category_id']) ? (int) $data['category_id'] : null,
             view: $data['view'] ?? 'active',
+            include: $data['include'] ?? null,
             page: (int) ($data['page'] ?? 1),
             perPage: (int) ($data['per_page'] ?? 50),
         );

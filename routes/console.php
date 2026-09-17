@@ -1,5 +1,6 @@
 <?php
 
+use App\Services\RecurringTransactions\RecurringDateRange;
 use Illuminate\Foundation\Inspiring;
 use Illuminate\Support\Facades\Artisan;
 use Illuminate\Support\Facades\DB;
@@ -32,3 +33,7 @@ Schedule::call(function (): void {
         ->where('failed_at', '<', now()->subDays((int) config('authentication.retention.failed_jobs_days', 14)))
         ->delete();
 })->daily();
+
+Schedule::command('recurring:process-due')
+    ->dailyAt('00:05')
+    ->timezone(RecurringDateRange::BUSINESS_TIMEZONE);

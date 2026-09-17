@@ -11,6 +11,7 @@ use App\Exceptions\FinancialAccounts\FinancialAccountNameConflictException;
 use App\Exceptions\FinancialAccounts\FinancialAccountStateException;
 use App\Models\FinancialAccount;
 use App\Models\User;
+use App\Services\RecurringTransactions\RecurringTransactionService;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
@@ -173,6 +174,9 @@ final class FinancialAccountService
             $account->status = AccountStatus::Archived;
             $account->archived_at = now();
             $account->save();
+
+            // Archiving an association pauses its active recurring rules without touching history.
+            app(RecurringTransactionService::class)->pauseForArchivedAccount((int) $account->id);
 
             return $account;
         });

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\FinancialAccountController;
 use App\Http\Controllers\Api\V1\FinancialAccountSummaryController;
 use App\Http\Controllers\Api\V1\FinancialHistoryController;
+use App\Http\Controllers\Api\V1\RecurringTransactionController;
 use App\Http\Controllers\Api\V1\TransactionController;
 use App\Http\Controllers\Api\V1\TransferController;
 use Illuminate\Support\Facades\Route;
@@ -52,5 +53,14 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/transfers/{transfer_id}/restore', [TransferController::class, 'restore'])->whereNumber('transfer_id');
 
         Route::get('/financial-history', [FinancialHistoryController::class, 'index']);
+
+        Route::get('/recurring-transactions', [RecurringTransactionController::class, 'index']);
+        Route::post('/recurring-transactions', [RecurringTransactionController::class, 'store']);
+        Route::get('/recurring-transactions/{recurring_transaction_id}', [RecurringTransactionController::class, 'show'])->whereNumber('recurring_transaction_id');
+        Route::patch('/recurring-transactions/{recurring_transaction_id}', [RecurringTransactionController::class, 'update'])->whereNumber('recurring_transaction_id');
+        Route::get('/recurring-transactions/{recurring_transaction_id}/occurrences', [RecurringTransactionController::class, 'occurrences'])->whereNumber('recurring_transaction_id');
+        Route::post('/recurring-transactions/{recurring_transaction_id}/pause', [RecurringTransactionController::class, 'pause'])->whereNumber('recurring_transaction_id');
+        Route::post('/recurring-transactions/{recurring_transaction_id}/resume', [RecurringTransactionController::class, 'resume'])->whereNumber('recurring_transaction_id');
+        Route::post('/recurring-transactions/{recurring_transaction_id}/end', [RecurringTransactionController::class, 'end'])->whereNumber('recurring_transaction_id');
     });
 });

@@ -14,7 +14,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['user_id', 'financial_account_id', 'category_id', 'type', 'status', 'description', 'notes', 'amount_centavos', 'currency_code', 'transaction_date', 'search_text', 'removed_at'])]
+#[Fillable(['user_id', 'financial_account_id', 'category_id', 'type', 'status', 'description', 'notes', 'amount_centavos', 'currency_code', 'transaction_date', 'search_text', 'removed_at', 'recurring_transaction_id', 'recurrence_scheduled_date'])]
 class Transaction extends Model
 {
     /** @use HasFactory<TransactionFactory> */
@@ -35,6 +35,7 @@ class Transaction extends Model
             'status' => TransactionStatus::class,
             'amount_centavos' => 'integer',
             'transaction_date' => 'date',
+            'recurrence_scheduled_date' => 'date',
             'removed_at' => 'datetime',
         ];
     }
@@ -55,6 +56,17 @@ class Transaction extends Model
     public function category(): BelongsTo
     {
         return $this->belongsTo(Category::class);
+    }
+
+    /** @return BelongsTo<RecurringTransaction, $this> */
+    public function recurringTransaction(): BelongsTo
+    {
+        return $this->belongsTo(RecurringTransaction::class, 'recurring_transaction_id');
+    }
+
+    public function isGeneratedFromRecurrence(): bool
+    {
+        return $this->recurring_transaction_id !== null && $this->recurrence_scheduled_date !== null;
     }
 
     /** @param Builder<Transaction> $query */
