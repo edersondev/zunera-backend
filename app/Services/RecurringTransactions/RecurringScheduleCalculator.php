@@ -49,6 +49,22 @@ final class RecurringScheduleCalculator
     }
 
     /**
+     * Eligible schedule dates inside an inclusive window for projections that may
+     * only describe future expectations. Paused and ended rules contribute
+     * nothing, and every other lifecycle rule of {@see datesBetween()} applies.
+     *
+     * @return list<string>
+     */
+    public function futureDatesBetween(RecurringTransaction $rule, string $from, string $to): array
+    {
+        if (! $rule->isActive()) {
+            return [];
+        }
+
+        return $this->datesBetween($rule, $from, $to);
+    }
+
+    /**
      * Next date the rule is expected to generate, skipping schedule dates that
      * already produced an occurrence.
      *
