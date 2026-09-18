@@ -89,6 +89,11 @@ final class CategoryService
                 if ($data->has('classification') && $category->has_financial_transactions) {
                     throw CategoryStateException::classificationLocked();
                 }
+                // A budget plan association locks the classification as expense even
+                // before the category has any financial transaction.
+                if ($data->has('classification') && $classification !== $category->classification && $category->has_budget_plans) {
+                    throw CategoryStateException::budgetPlanClassificationLocked();
+                }
                 $name = $data->has('name') ? trim((string) $data->changes['name']) : $category->name;
                 $normalizedName = CategoryNameNormalizer::normalize($name);
                 if ($category->status->isActive()) {
