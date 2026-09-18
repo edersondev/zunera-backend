@@ -15,7 +15,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 
-#[Fillable(['user_id', 'origin', 'name', 'normalized_name', 'classification', 'color', 'icon', 'status', 'archived_at', 'has_financial_transactions'])]
+#[Fillable(['user_id', 'origin', 'name', 'normalized_name', 'classification', 'color', 'icon', 'status', 'archived_at', 'has_financial_transactions', 'has_budget_plans'])]
 class Category extends Model
 {
     /** @use HasFactory<CategoryFactory> */
@@ -33,7 +33,7 @@ class Category extends Model
     /** @return array<string, mixed> */
     protected function casts(): array
     {
-        return ['origin' => CategoryOrigin::class, 'classification' => CategoryClassification::class, 'status' => CategoryStatus::class, 'archived_at' => 'datetime', 'has_financial_transactions' => 'boolean'];
+        return ['origin' => CategoryOrigin::class, 'classification' => CategoryClassification::class, 'status' => CategoryStatus::class, 'archived_at' => 'datetime', 'has_financial_transactions' => 'boolean', 'has_budget_plans' => 'boolean'];
     }
 
     /** @return BelongsTo<User, $this> */
