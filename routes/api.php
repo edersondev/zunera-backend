@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\AuthMailDeliveryEventController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\FinancialAccountController;
 use App\Http\Controllers\Api\V1\FinancialAccountSummaryController;
+use App\Http\Controllers\Api\V1\FinancialDashboardController;
 use App\Http\Controllers\Api\V1\FinancialHistoryController;
 use App\Http\Controllers\Api\V1\RecurringTransactionController;
 use App\Http\Controllers\Api\V1\TransactionController;
@@ -53,6 +54,13 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/transfers/{transfer_id}/restore', [TransferController::class, 'restore'])->whereNumber('transfer_id');
 
         Route::get('/financial-history', [FinancialHistoryController::class, 'index']);
+
+        Route::get('/financial-dashboard/summary', [FinancialDashboardController::class, 'summary']);
+        Route::get('/financial-dashboard/accounts', [FinancialDashboardController::class, 'accounts']);
+        Route::get('/financial-dashboard/expense-distribution', [FinancialDashboardController::class, 'expenseDistribution']);
+        Route::get('/financial-dashboard/evolution', [FinancialDashboardController::class, 'evolution']);
+        Route::get('/financial-dashboard/recent-activity', [FinancialDashboardController::class, 'recentActivity']);
+        Route::get('/financial-dashboard/upcoming-activity', [FinancialDashboardController::class, 'upcomingActivity']);
 
         Route::get('/recurring-transactions', [RecurringTransactionController::class, 'index']);
         Route::post('/recurring-transactions', [RecurringTransactionController::class, 'store']);
