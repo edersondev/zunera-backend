@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AuthMailDeliveryEventController;
+use App\Http\Controllers\Api\V1\BudgetController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\FinancialAccountController;
 use App\Http\Controllers\Api\V1\FinancialAccountSummaryController;
@@ -70,5 +71,12 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/recurring-transactions/{recurring_transaction_id}/pause', [RecurringTransactionController::class, 'pause'])->whereNumber('recurring_transaction_id');
         Route::post('/recurring-transactions/{recurring_transaction_id}/resume', [RecurringTransactionController::class, 'resume'])->whereNumber('recurring_transaction_id');
         Route::post('/recurring-transactions/{recurring_transaction_id}/end', [RecurringTransactionController::class, 'end'])->whereNumber('recurring_transaction_id');
+
+        Route::get('/budgets/{year}/{month}', [BudgetController::class, 'show'])->whereNumber('year')->whereNumber('month');
+        Route::post('/budgets', [BudgetController::class, 'store']);
+        Route::post('/budgets/{budget_id}/plans', [BudgetController::class, 'storePlan'])->whereNumber('budget_id');
+        Route::patch('/budgets/{budget_id}/plans/{plan_id}', [BudgetController::class, 'updatePlan'])->whereNumber('budget_id')->whereNumber('plan_id');
+        Route::delete('/budgets/{budget_id}/plans/{plan_id}', [BudgetController::class, 'destroyPlan'])->whereNumber('budget_id')->whereNumber('plan_id');
+        Route::post('/budgets/{budget_id}/copy', [BudgetController::class, 'copy'])->whereNumber('budget_id');
     });
 });

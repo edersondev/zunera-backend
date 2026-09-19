@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Tests\Feature\Categories;
 
+use App\Models\BudgetCategoryPlan;
 use App\Models\Category;
+use App\Models\MonthlyBudget;
 use App\Models\User;
 use Database\Seeders\CategorySeeder;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -60,6 +62,29 @@ final class CreateAndUpdateCategoriesTest extends TestCase
         $this->patchJson("/api/v1/categories/{$used->id}", ['classification' => 'income'])->assertStatus(409)->assertJsonPath('code', 'category_classification_locked');
         $this->patchJson("/api/v1/categories/{$used->id}", ['name' => 'Renamed'])->assertOk();
         $this->patchJson("/api/v1/categories/{$other->id}", ['name' => 'Nope'])->assertNotFound();
+    }
+
+    #[Test]
+    public function a_category_used_in_a_budget_plan_cannot_become_income(): void
+    {
+        $user = $this->signedInUser();
+        $category = Category::factory()->create(['user_id' => $user->id, 'name' => 'Pet care']);
+        $budget = MonthlyBudget::factory()->create(['user_id' => $user->id, 'budget_year' => 2026, 'budget_month' => 9]);
+        BudgetCategoryPlan::factory()->create(['monthly_budget_id' => $budget->id, 'category_id' => $category->id]);
+
+        $this->patchJson("/api/v1/categories/{$category->id}", ['classification' => 'income'])
+            ->assertStatus(409)
+            ->assertJsonPath('code', 'category_budget_plan_locked');
+
+        // Renaming stays allowed while the classification lock holds.
+        $this->patchJson("/api/v1/categories/{$category->id}", ['name' => 'Pet health'])->assertOk();
+        self::assertSame('expense', $category->fresh()->classification->value);
+
+        // Removing the plan never unlocks the classification.
+        BudgetCategoryPlan::query()->where('category_id', $category->id)->delete();
+        $this->patchJson("/api/v1/categories/{$category->id}", ['classification' => 'income'])
+            ->assertStatus(409)
+            ->assertJsonPath('code', 'category_budget_plan_locked');
     }
 
     private function signedInUser(): User
