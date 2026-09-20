@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\V1\AuthMailDeliveryEventController;
 use App\Http\Controllers\Api\V1\BudgetController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CreditCardController;
+use App\Http\Controllers\Api\V1\CreditCardCreditEventController;
 use App\Http\Controllers\Api\V1\CreditCardPurchaseController;
 use App\Http\Controllers\Api\V1\CreditCardStatementController;
 use App\Http\Controllers\Api\V1\CreditCardStatementPaymentController;
@@ -91,6 +92,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/credit-cards/{card_id}/purchases', [CreditCardPurchaseController::class, 'index'])->whereNumber('card_id');
         Route::post('/credit-cards/{card_id}/purchases', [CreditCardPurchaseController::class, 'store'])->whereNumber('card_id');
         Route::get('/credit-card-purchases/{purchase_id}', [CreditCardPurchaseController::class, 'show'])->whereNumber('purchase_id');
+        Route::patch('/credit-card-purchases/{purchase_id}', [CreditCardPurchaseController::class, 'update'])->whereNumber('purchase_id');
+        Route::post('/credit-card-purchases/{purchase_id}/credit-events', [CreditCardCreditEventController::class, 'store'])->whereNumber('purchase_id');
         Route::get('/credit-cards/{card_id}/statements', [CreditCardStatementController::class, 'index'])->whereNumber('card_id');
         Route::get('/credit-card-statements/{statement_id}', [CreditCardStatementController::class, 'show'])->whereNumber('statement_id');
         Route::post('/credit-card-statements/{statement_id}/payments', [CreditCardStatementPaymentController::class, 'store'])->whereNumber('statement_id');

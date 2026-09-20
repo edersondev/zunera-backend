@@ -7,9 +7,11 @@ namespace App\Http\Controllers\Api\V1;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CreditCards\ListCreditCardPurchasesRequest;
 use App\Http\Requests\CreditCards\StoreCreditCardPurchaseRequest;
+use App\Http\Requests\CreditCards\UpdateCreditCardPurchaseRequest;
 use App\Http\Resources\CreditCards\CreditCardPurchaseResource;
 use App\Models\CreditCardPurchase;
 use App\Models\User;
+use App\Services\CreditCards\CreditCardPurchaseCorrectionService;
 use App\Services\CreditCards\CreditCardPurchaseService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -51,6 +53,26 @@ final class CreditCardPurchaseController extends Controller
         $user = $request->user();
 
         return (new CreditCardPurchaseResource($service->findOwned($user, $purchase_id)))->response();
+    }
+
+    public function update(
+        UpdateCreditCardPurchaseRequest $request,
+        CreditCardPurchaseService $purchases,
+        CreditCardPurchaseCorrectionService $service,
+        int $purchase_id,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+        $result = $service->update(
+            $user,
+            $purchases->findOwned($user, $purchase_id),
+            $request->toData(),
+            $request->overLimitConfirmed(),
+            $request->expectedAvailableCreditCentavos(),
+            $request->idempotencyKey(),
+        );
+
+        return $this->mutationResponse($result);
     }
 
     /** @param array{target_type: string, target_id: int, status: int, response: array<string, mixed>, replayed: bool} $result */

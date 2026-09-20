@@ -17,6 +17,7 @@ use App\Models\FinancialAccount;
 use App\Models\User;
 use App\Services\CreditCards\BillingCycleCalculator;
 use App\Services\CreditCards\CreditCardObligationReconciler;
+use App\Services\CreditCards\CreditCardPaymentAccountReconciler;
 use App\Services\CreditCards\InstallmentAllocator;
 use Carbon\CarbonImmutable;
 
@@ -126,6 +127,9 @@ trait CreditCardFixtures
             'payment_date' => $paymentDate ?? $statement->due_date->toDateString(),
         ]);
 
+        // Fixture settlements must move the paying account exactly like the
+        // production service so balance assertions stay meaningful.
+        app(CreditCardPaymentAccountReconciler::class)->reconcile(null, $payment);
         $this->syncCard($statement->creditCard);
 
         return $payment;

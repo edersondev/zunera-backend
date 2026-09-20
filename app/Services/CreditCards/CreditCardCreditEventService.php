@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace App\Services\CreditCards;
 
 use App\Data\CreditCards\CreateCreditEventData;
+use App\Data\CreditCards\CreditCardResponseData;
+use App\Data\CreditCards\CreditEventResponseData;
+use App\Data\CreditCards\StatementResponseData;
 use App\Enums\CreditCards\CreditCardCreditApplicationKind;
 use App\Enums\CreditCards\CreditCardCreditEventReason;
 use App\Exceptions\CreditCards\CreditCardStateException;
@@ -79,7 +82,19 @@ final class CreditCardCreditEventService
                     'target_type' => 'credit_event',
                     'target_id' => $event->id,
                     'status' => 201,
-                    'response' => ['data' => ['credit_event_id' => $event->id]],
+                    'response' => ['data' => [
+                        'credit_event' => CreditEventResponseData::from($event->refresh()),
+                        'card' => CreditCardResponseData::card($card->refresh(), $this->reconciler, $this->businessDate()),
+                        'affected_statements' => array_map(
+                            fn (int $statementId) => StatementResponseData::summary(
+                                CreditCardStatement::query()->findOrFail($statementId),
+                                $card,
+                                false,
+                                $this->businessDate(),
+                            ),
+                            array_map('intval', array_keys($affected)),
+                        ),
+                    ]],
                     'applications' => $affected,
                 ];
             });
@@ -93,6 +108,7 @@ final class CreditCardCreditEventService
                 'event' => $event,
                 'card' => $card,
                 'applications' => $result['applications'] ?? [],
+                'response' => $result['response'] ?? [],
                 'replayed' => $result['replayed'],
             ];
         });
