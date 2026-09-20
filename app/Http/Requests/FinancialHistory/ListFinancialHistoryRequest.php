@@ -21,8 +21,8 @@ final class ListFinancialHistoryRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'movement_kind' => ['nullable', Rule::in(['all', 'income', 'expense', 'transfer'])],
-            'type' => ['nullable', Rule::in(['income', 'expense'])],
+            'movement_kind' => ['nullable', Rule::in(['all', 'income', 'expense', 'transfer', 'credit_card_expense'])],
+            'type' => ['nullable', Rule::in(['income', 'expense', 'credit_card_expense'])],
             'from' => ['nullable', 'string', 'max:10'],
             'to' => ['nullable', 'string', 'max:10'],
             'financial_account_id' => ['nullable', 'integer', 'min:1'],

@@ -6,6 +6,7 @@ use App\Http\Controllers\Api\V1\BudgetController;
 use App\Http\Controllers\Api\V1\CategoryController;
 use App\Http\Controllers\Api\V1\CreditCardController;
 use App\Http\Controllers\Api\V1\CreditCardCreditEventController;
+use App\Http\Controllers\Api\V1\CreditCardDashboardController;
 use App\Http\Controllers\Api\V1\CreditCardPurchaseController;
 use App\Http\Controllers\Api\V1\CreditCardStatementController;
 use App\Http\Controllers\Api\V1\CreditCardStatementPaymentController;
@@ -100,5 +101,6 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('/credit-card-payments/{payment_id}', [CreditCardStatementPaymentController::class, 'update'])->whereNumber('payment_id');
         Route::post('/credit-card-payments/{payment_id}/remove', [CreditCardStatementPaymentController::class, 'remove'])->whereNumber('payment_id');
         Route::post('/credit-card-payments/{payment_id}/restore', [CreditCardStatementPaymentController::class, 'restore'])->whereNumber('payment_id');
+        Route::get('/financial-dashboard/credit-cards', [CreditCardDashboardController::class, 'show']);
     });
 });

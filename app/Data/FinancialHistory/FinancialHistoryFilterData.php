@@ -24,14 +24,24 @@ final readonly class FinancialHistoryFilterData
 
     public function includesTransactions(): bool
     {
-        return $this->movementKind !== 'transfer';
+        return in_array($this->movementKind, ['all', 'income', 'expense'], true);
     }
 
     public function includesTransfers(): bool
     {
         return $this->categoryId === null
             && $this->movementKind !== 'income'
-            && $this->movementKind !== 'expense';
+            && $this->movementKind !== 'expense'
+            && $this->movementKind !== 'credit_card_expense';
+    }
+
+    /**
+     * Recognized card installments are discriminated history entries; statement
+     * payments are settlement only and never appear as history entries.
+     */
+    public function includesCreditCardExpenses(): bool
+    {
+        return in_array($this->movementKind, ['all', 'credit_card_expense'], true);
     }
 
     public function includesRecurring(): bool
