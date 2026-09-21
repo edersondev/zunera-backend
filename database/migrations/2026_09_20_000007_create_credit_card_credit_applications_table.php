@@ -10,11 +10,23 @@ return new class extends Migration
     {
         Schema::create('credit_card_credit_applications', function (Blueprint $table): void {
             $table->id();
-            $table->foreignId('user_id')->constrained()->cascadeOnDelete();
-            $table->foreignId('credit_card_credit_event_id')->constrained('credit_card_credit_events')->cascadeOnDelete();
-            $table->foreignId('credit_card_id')->constrained('credit_cards')->cascadeOnDelete();
-            $table->foreignId('credit_card_installment_id')->nullable()->constrained('credit_card_installments')->cascadeOnDelete();
-            $table->foreignId('credit_card_statement_id')->nullable()->constrained('credit_card_statements')->cascadeOnDelete();
+            $table->foreignId('user_id')->constrained(indexName: 'cc_credit_apps_user_fk')->cascadeOnDelete();
+            $table->foreignId('credit_card_credit_event_id')->constrained(
+                table: 'credit_card_credit_events',
+                indexName: 'cc_credit_apps_event_fk',
+            )->cascadeOnDelete();
+            $table->foreignId('credit_card_id')->constrained(
+                table: 'credit_cards',
+                indexName: 'cc_credit_apps_card_fk',
+            )->cascadeOnDelete();
+            $table->foreignId('credit_card_installment_id')->nullable()->constrained(
+                table: 'credit_card_installments',
+                indexName: 'cc_credit_apps_installment_fk',
+            )->cascadeOnDelete();
+            $table->foreignId('credit_card_statement_id')->nullable()->constrained(
+                table: 'credit_card_statements',
+                indexName: 'cc_credit_apps_statement_fk',
+            )->cascadeOnDelete();
             $table->string('kind', 16);
             $table->unsignedBigInteger('amount_centavos');
             $table->date('applied_at');
