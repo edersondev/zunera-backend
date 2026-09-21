@@ -98,6 +98,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/credit-cards/{card_id}/statements', [CreditCardStatementController::class, 'index'])->whereNumber('card_id');
         Route::get('/credit-card-statements/{statement_id}', [CreditCardStatementController::class, 'show'])->whereNumber('statement_id');
         Route::post('/credit-card-statements/{statement_id}/payments', [CreditCardStatementPaymentController::class, 'store'])->whereNumber('statement_id');
+        Route::get('/credit-card-payments/{payment_id}', [CreditCardStatementPaymentController::class, 'show'])->whereNumber('payment_id');
         Route::patch('/credit-card-payments/{payment_id}', [CreditCardStatementPaymentController::class, 'update'])->whereNumber('payment_id');
         Route::post('/credit-card-payments/{payment_id}/remove', [CreditCardStatementPaymentController::class, 'remove'])->whereNumber('payment_id');
         Route::post('/credit-card-payments/{payment_id}/restore', [CreditCardStatementPaymentController::class, 'restore'])->whereNumber('payment_id');

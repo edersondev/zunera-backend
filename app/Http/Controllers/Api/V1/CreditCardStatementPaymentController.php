@@ -13,9 +13,21 @@ use App\Models\User;
 use App\Services\CreditCards\CreditCardStatementPaymentService;
 use App\Services\CreditCards\CreditCardStatementService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 final class CreditCardStatementPaymentController extends Controller
 {
+    public function show(
+        Request $request,
+        CreditCardStatementPaymentService $service,
+        int $payment_id,
+    ): JsonResponse {
+        /** @var User $user */
+        $user = $request->user();
+
+        return response()->json(['data' => $service->payloadFor($service->findOwned($user, $payment_id))]);
+    }
+
     public function store(
         StoreCreditCardStatementPaymentRequest $request,
         CreditCardStatementService $statements,

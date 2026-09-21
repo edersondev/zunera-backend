@@ -79,6 +79,24 @@ final class CreditCardStatementPaymentTest extends TestCase
     }
 
     #[Test]
+    public function owner_reads_a_payment_with_its_statement_and_card_projections(): void
+    {
+        $user = $this->cardSignIn('2026-09-20');
+        $card = $this->activeCard($user, ['closing_day' => 10, 'due_day' => 17]);
+        $purchase = $this->recordPurchase($card, $this->expenseCategory($user), 10_000, 1, '2026-08-05');
+        $statement = $purchase->installments()->first()->statement;
+        $account = $this->cardAccount($user, ['initial_balance_centavos' => 50_000, 'current_balance_centavos' => 50_000]);
+        $payment = $this->payStatement($statement, $account, 10_000, '2026-09-10');
+
+        $this->getJson('/api/v1/credit-card-payments/'.$payment->id)
+            ->assertOk()
+            ->assertJsonPath('data.payment.id', $payment->id)
+            ->assertJsonPath('data.payment.financial_account.id', $account->id)
+            ->assertJsonPath('data.statement.id', $statement->id)
+            ->assertJsonPath('data.card.id', $card->id);
+    }
+
+    #[Test]
     public function partial_then_full_payment_settles_the_statement(): void
     {
         $user = $this->cardSignIn('2026-08-16');
@@ -371,6 +389,7 @@ final class CreditCardStatementPaymentTest extends TestCase
         $account = $this->cardAccount($other);
         $payment = $this->payStatement($statement, $account, 10_000, '2026-09-10');
 
+        $this->getJson('/api/v1/credit-card-payments/'.$payment->id)->assertNotFound();
         $this->patchJson('/api/v1/credit-card-payments/'.$payment->id, ['amount_centavos' => 1], ['Idempotency-Key' => 'foreign-edit'])->assertNotFound();
         $this->postJson('/api/v1/credit-card-payments/'.$payment->id.'/remove', [], ['Idempotency-Key' => 'foreign-remove'])->assertNotFound();
         $this->postJson('/api/v1/credit-card-payments/'.$payment->id.'/restore', [], ['Idempotency-Key' => 'foreign-restore'])->assertNotFound();
