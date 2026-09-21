@@ -65,6 +65,16 @@ final class CreditCardController extends Controller
         return $this->mutationResponse($result);
     }
 
+    public function restore(LifecycleCreditCardRequest $request, CreditCardService $service, int $card_id): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+
+        $result = $service->restore($user, $service->findOwned($user, $card_id), $request->idempotencyKey());
+
+        return $this->mutationResponse($result);
+    }
+
     /** @param array{target_type: string, target_id: int, status: int, response: array<string, mixed>, replayed: bool} $result */
     private function mutationResponse(array $result): JsonResponse
     {

@@ -90,6 +90,7 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/credit-cards/{card_id}', [CreditCardController::class, 'show'])->whereNumber('card_id');
         Route::patch('/credit-cards/{card_id}', [CreditCardController::class, 'update'])->whereNumber('card_id');
         Route::post('/credit-cards/{card_id}/archive', [CreditCardController::class, 'archive'])->whereNumber('card_id');
+        Route::post('/credit-cards/{card_id}/restore', [CreditCardController::class, 'restore'])->whereNumber('card_id');
         Route::get('/credit-cards/{card_id}/purchases', [CreditCardPurchaseController::class, 'index'])->whereNumber('card_id');
         Route::post('/credit-cards/{card_id}/purchases', [CreditCardPurchaseController::class, 'store'])->whereNumber('card_id');
         Route::get('/credit-card-purchases/{purchase_id}', [CreditCardPurchaseController::class, 'show'])->whereNumber('purchase_id');

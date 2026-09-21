@@ -151,6 +151,34 @@ final class CreditCardService
         });
     }
 
+    /** @return array{target_type: string, target_id: int, status: int, response: array<string, mixed>, replayed: bool, card: CreditCard} */
+    public function restore(User $user, CreditCard $card, string $idempotencyKey): array
+    {
+        return DB::transaction(function () use ($user, $card, $idempotencyKey): array {
+            $locked = $this->lockOwnedCard($user, $card->id);
+            $fingerprint = $this->idempotency->fingerprint('card.restore:'.$locked->id, ['action' => 'restore']);
+
+            $result = $this->idempotency->run($user->id, $idempotencyKey, 'card.restore', $fingerprint, function () use ($locked): array {
+                if ($locked->isActive()) {
+                    throw CreditCardStateException::cardAlreadyActive();
+                }
+
+                $locked->status = CreditCardStatus::Active;
+                $locked->archived_at = null;
+                $locked->save();
+
+                return [
+                    'target_type' => 'credit_card',
+                    'target_id' => $locked->id,
+                    'status' => 200,
+                    'response' => ['data' => CreditCardResponseData::card($locked, $this->reconciler, $this->businessDate())],
+                ];
+            });
+
+            return [...$result, 'card' => $locked->refresh()];
+        });
+    }
+
     public function assertArchivable(CreditCard $card): void
     {
         $outstanding = $this->reconciler->usedCreditCentavos($card);

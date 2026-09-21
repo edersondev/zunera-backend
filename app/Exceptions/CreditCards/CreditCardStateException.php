@@ -26,6 +26,11 @@ final class CreditCardStateException extends RuntimeException
         return new self('card_archived', 'Archived cards cannot accept new activity.');
     }
 
+    public static function cardAlreadyActive(): self
+    {
+        return new self('card_already_active', 'This credit card is already active.');
+    }
+
     public static function archiveBlockedByOutstanding(int $outstandingCentavos): self
     {
         return new self(

@@ -70,6 +70,22 @@ final class CreditCardDashboardAndHistoryIntegrationTest extends TestCase
     }
 
     #[Test]
+    public function dashboard_projection_excludes_archived_cards_from_cards_and_totals(): void
+    {
+        $user = $this->cardSignIn('2026-09-20');
+        $active = $this->activeCard($user, ['name' => 'Ativo', 'credit_limit_centavos' => 100_000]);
+        $this->archivedCard($user, ['name' => 'Arquivado', 'credit_limit_centavos' => 500_000]);
+
+        $this->getJson('/api/v1/financial-dashboard/credit-cards')
+            ->assertOk()
+            ->assertJsonCount(1, 'data.cards')
+            ->assertJsonPath('data.cards.0.id', $active->id)
+            ->assertJsonPath('data.outstanding_obligation.amount_centavos', 0)
+            ->assertJsonPath('data.card_credit.amount_centavos', 0)
+            ->assertJsonPath('data.available_credit.amount_centavos', 100_000);
+    }
+
+    #[Test]
     public function recognized_card_expense_appears_once_in_financial_history(): void
     {
         $user = $this->cardSignIn('2026-09-20');

@@ -29,6 +29,11 @@ final class CreditCardPolicy
         return $this->owns($user, $card);
     }
 
+    public function restore(User $user, CreditCard $card): bool
+    {
+        return $this->owns($user, $card);
+    }
+
     public function purchase(User $user, CreditCard $card): bool
     {
         return $this->owns($user, $card);

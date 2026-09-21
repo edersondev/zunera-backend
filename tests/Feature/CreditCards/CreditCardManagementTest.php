@@ -190,6 +190,40 @@ final class CreditCardManagementTest extends TestCase
     }
 
     #[Test]
+    public function owner_restores_an_archived_card_to_active_use(): void
+    {
+        $user = $this->cardSignIn();
+        $card = $this->archivedCard($user);
+
+        $this->postJson('/api/v1/credit-cards/'.$card->id.'/restore', [], ['Idempotency-Key' => 'restore-ok'])
+            ->assertOk()
+            ->assertJsonPath('data.status', 'active');
+
+        $this->assertNull($card->refresh()->archived_at);
+        $this->getJson('/api/v1/credit-cards')->assertOk()->assertJsonPath('data.0.id', $card->id);
+        $this->getJson('/api/v1/credit-cards?view=archived')->assertOk()->assertJsonCount(0, 'data');
+    }
+
+    #[Test]
+    public function restore_replays_its_original_response_and_rejects_active_cards(): void
+    {
+        $user = $this->cardSignIn();
+        $archived = $this->archivedCard($user);
+
+        $first = $this->postJson('/api/v1/credit-cards/'.$archived->id.'/restore', [], ['Idempotency-Key' => 'restore-replay'])
+            ->assertOk();
+
+        $this->postJson('/api/v1/credit-cards/'.$archived->id.'/restore', [], ['Idempotency-Key' => 'restore-replay'])
+            ->assertOk()
+            ->assertExactJson($first->json());
+
+        $active = $this->activeCard($user);
+        $this->postJson('/api/v1/credit-cards/'.$active->id.'/restore', [], ['Idempotency-Key' => 'restore-active'])
+            ->assertStatus(409)
+            ->assertJsonPath('code', 'card_already_active');
+    }
+
+    #[Test]
     public function foreign_cards_are_invisible_for_read_and_mutation(): void
     {
         $this->cardSignIn();
@@ -199,6 +233,7 @@ final class CreditCardManagementTest extends TestCase
         $this->getJson('/api/v1/credit-cards/'.$foreign->id)->assertNotFound();
         $this->patchJson('/api/v1/credit-cards/'.$foreign->id, ['name' => 'Invasão'], ['Idempotency-Key' => 'foreign-update'])->assertNotFound();
         $this->postJson('/api/v1/credit-cards/'.$foreign->id.'/archive', [], ['Idempotency-Key' => 'foreign-archive'])->assertNotFound();
+        $this->postJson('/api/v1/credit-cards/'.$foreign->id.'/restore', [], ['Idempotency-Key' => 'foreign-restore'])->assertNotFound();
         $this->getJson('/api/v1/credit-cards')->assertOk()->assertJsonCount(0, 'data');
     }
 

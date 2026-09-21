@@ -34,6 +34,7 @@ final class CreditCardDashboardProjectionService
 
         $cards = CreditCard::query()
             ->where('user_id', $user->id)
+            ->active()
             ->orderBy('name')
             ->orderBy('id')
             ->get();
@@ -54,6 +55,7 @@ final class CreditCardDashboardProjectionService
         $upcoming = CreditCardStatement::query()
             ->with('creditCard')
             ->where('user_id', $user->id)
+            ->whereHas('creditCard', fn ($query) => $query->active())
             ->whereRaw('(original_amount_centavos - credit_adjustment_centavos - paid_centavos - card_credit_applied_centavos) > 0')
             ->whereDate('due_date', '>=', $business->toDateString())
             ->orderBy('due_date')
