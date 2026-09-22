@@ -50,6 +50,8 @@ final class PurchaseResponseData
 
         return [
             'id' => $installment->id,
+            'description' => $purchase->description,
+            'purchase_date' => $purchase->purchase_date->toDateString(),
             'sequence' => $installment->sequence,
             'total_count' => $purchase->installment_count,
             'amount' => CreditCardResponseData::money($installment->amount_centavos),

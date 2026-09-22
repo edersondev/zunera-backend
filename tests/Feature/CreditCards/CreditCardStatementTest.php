@@ -107,6 +107,8 @@ final class CreditCardStatementTest extends TestCase
             ->assertJsonPath('data.paid_amount.amount_centavos', 10_000)
             ->assertJsonPath('data.outstanding_amount.amount_centavos', 15_000)
             ->assertJsonCount(1, 'data.installments')
+            ->assertJsonPath('data.installments.0.description', 'Compra teste')
+            ->assertJsonPath('data.installments.0.purchase_date', '2026-09-05')
             ->assertJsonCount(1, 'data.payments')
             ->assertJsonCount(1, 'data.credit_events');
 
