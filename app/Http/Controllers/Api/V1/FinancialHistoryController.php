@@ -21,7 +21,8 @@ final class FinancialHistoryController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $paginator = $service->list($user, $request->toData());
+        $filters = $request->toData();
+        $paginator = $service->list($user, $filters);
 
         return response()->json([
             'data' => $paginator->items(),
@@ -30,7 +31,7 @@ final class FinancialHistoryController extends Controller
                 'last_page' => $paginator->lastPage(),
                 'per_page' => $paginator->perPage(),
                 'total' => $paginator->total(),
-                'totals' => $service->totals($user),
+                'totals' => $service->totals($user, $filters),
             ],
             'links' => [
                 'first' => $paginator->url(1),
