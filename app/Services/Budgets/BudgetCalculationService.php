@@ -13,6 +13,7 @@ use App\Models\BudgetCategoryPlan;
 use App\Models\MonthlyBudget;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\CreditCards\CreditCardBudgetProjectionService;
 use Illuminate\Support\Collection;
 
 /**
@@ -22,7 +23,10 @@ use Illuminate\Support\Collection;
  */
 final class BudgetCalculationService
 {
-    public function __construct(private readonly BudgetMonthResolver $resolver) {}
+    public function __construct(
+        private readonly BudgetMonthResolver $resolver,
+        private readonly CreditCardBudgetProjectionService $creditCards,
+    ) {}
 
     public function forMonth(User $user, MonthlyBudget $budget): BudgetMonthCalculation
     {
@@ -30,11 +34,19 @@ final class BudgetCalculationService
         $month = (int) $budget->budget_month;
         $from = $this->resolver->from($year, $month);
         $to = $this->resolver->to($year, $month);
-        $effective = $this->effectiveExpensesByCategory($user, $from, $to);
+        $effective = $this->mergeCategoryTotals(
+            $this->effectiveExpensesByCategory($user, $from, $to),
+            $this->creditCards->realizedByCategory($user, $from, $to),
+        );
         $endedMonth = $this->resolver->isEnded($year, $month);
         // Past months never advertise future expectations; realized spending
         // stays the only truth once the month is over.
-        $pending = $endedMonth ? collect() : $this->pendingExpensesByCategory($user, $from, $to);
+        $pending = $endedMonth
+            ? collect()
+            : $this->mergeCategoryTotals(
+                $this->pendingExpensesByCategory($user, $from, $to),
+                $this->creditCards->expectedByCategory($user, $from, $to),
+            );
         $plans = $budget->plans()->with('category')->orderBy('id')->get();
         $planCalculations = [];
         $totalPlanned = 0;
@@ -158,5 +170,23 @@ final class BudgetCalculationService
         }
 
         return round($spentCentavos / $plannedCentavos * 100, 2);
+    }
+
+    /**
+     * Card installments join ordinary transactions as a recognized expense
+     * source; both sides stay in exact centavos and are summed per category.
+     *
+     * @param  Collection<int, int>  $base
+     * @param  Collection<int, int>  $cardTotals
+     * @return Collection<int, int>
+     */
+    private function mergeCategoryTotals(Collection $base, Collection $cardTotals): Collection
+    {
+        foreach ($cardTotals as $categoryId => $total) {
+            $categoryId = (int) $categoryId;
+            $base[$categoryId] = (int) ($base[$categoryId] ?? 0) + (int) $total;
+        }
+
+        return $base;
     }
 }

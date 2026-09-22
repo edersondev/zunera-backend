@@ -1,6 +1,7 @@
 <?php
 
 use App\Exceptions\AuthenticationException as ZuneraAuthenticationException;
+use App\Exceptions\CreditCards\CreditCardStateException;
 use App\Exceptions\LoginThrottledException;
 use App\Http\Middleware\EnforceSessionLifetime;
 use App\Http\Middleware\SetRequestLocale;
@@ -61,5 +62,28 @@ return Application::configure(basePath: dirname(__DIR__))
                 'message' => $exception->getMessage(),
                 'code' => $exception->errorCode(),
             ], $exception->getCode() ?: Response::HTTP_BAD_REQUEST);
+        });
+
+        $exceptions->render(function (CreditCardStateException $exception, Request $request) {
+            if (! $request->is('api/*')) {
+                return null;
+            }
+
+            if ($exception->isOverLimitConfirmationRequired()) {
+                return response()->json([
+                    'message' => $exception->getMessage(),
+                    'code' => $exception->errorCode(),
+                    'resulting_available_credit' => [
+                        'amount_centavos' => $exception->resultingAvailableCreditCentavos() ?? 0,
+                        'currency_code' => 'BRL',
+                    ],
+                    'is_over_limit' => true,
+                ], Response::HTTP_CONFLICT);
+            }
+
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'code' => $exception->errorCode(),
+            ], Response::HTTP_CONFLICT);
         });
     })->create();

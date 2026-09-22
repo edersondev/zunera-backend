@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Resources\FinancialHistory;
 
 use App\Http\Resources\RecurringTransactions\RecurringTransactionResource;
+use App\Models\CreditCardInstallment;
 use App\Models\FinancialAccount;
 use App\Models\RecurringTransaction;
 use App\Models\Transaction;
@@ -16,8 +17,10 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * Discriminated read projection shared by the mixed financial-history endpoint.
  * Transfers use movement_kind = transfer, carry both account sides, never carry a
  * category, and never participate in income/expense signage.
+ * Recognized card installments use movement_kind = credit_card_expense on their
+ * statement closing date; statement payments are settlement and never appear.
  *
- * @mixin Transaction|Transfer|RecurringTransaction
+ * @mixin Transaction|Transfer|RecurringTransaction|CreditCardInstallment
  */
 final class FinancialHistoryResource extends JsonResource
 {
@@ -29,8 +32,50 @@ final class FinancialHistoryResource extends JsonResource
         return match (true) {
             $movement instanceof Transfer => $this->transferEntry($movement),
             $movement instanceof RecurringTransaction => $this->recurringEntry($movement),
+            $movement instanceof CreditCardInstallment => $this->creditCardExpenseEntry($movement),
             default => $this->transactionEntry($movement),
         };
+    }
+
+    /** @return array<string, mixed> */
+    private function creditCardExpenseEntry(CreditCardInstallment $installment): array
+    {
+        $purchase = $installment->purchase;
+        $statement = $installment->statement;
+
+        return [
+            'movement_kind' => 'credit_card_expense',
+            'id' => $installment->id,
+            'amount_centavos' => $installment->netAmountCentavos(),
+            'currency_code' => $purchase->currency_code,
+            'movement_date' => $statement?->closing_date?->toDateString(),
+            'status' => 'effective',
+            'description' => $purchase->description,
+            'notes' => $purchase->notes,
+            'installment' => [
+                'sequence' => $installment->sequence,
+                'total_count' => $purchase->installment_count,
+                'credit_adjustment_centavos' => $installment->credit_adjustment_centavos,
+            ],
+            'credit_card' => [
+                'id' => $purchase->creditCard?->id,
+                'name' => $purchase->creditCard?->name,
+                'status' => $purchase->creditCard?->status->value,
+            ],
+            'statement' => $statement === null ? null : [
+                'id' => $statement->id,
+                'closing_date' => $statement->closing_date->toDateString(),
+                'due_date' => $statement->due_date->toDateString(),
+                'status' => $statement->status->value,
+            ],
+            'financial_account' => null,
+            'category' => [
+                'id' => $purchase->category?->id,
+                'name' => $purchase->category?->name ?? $purchase->category_name_snapshot,
+                'classification' => $purchase->category?->classification->value ?? 'expense',
+                'status' => $purchase->category?->status->value ?? $purchase->category_status_snapshot,
+            ],
+        ];
     }
 
     /** @return array<string, mixed> */
