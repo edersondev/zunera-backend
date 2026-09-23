@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\CreditCards;
 
+use App\Data\CreditCards\CreditCardResponseData;
 use App\Data\CreditCards\CreditEventResponseData;
 use App\Data\CreditCards\PaymentResponseData;
 use App\Data\CreditCards\PurchaseResponseData;
@@ -31,7 +32,18 @@ final class CreditCardStatementDetailResource extends JsonResource
                 $businessDate,
             ),
             'installments' => $this->resource->installments
-                ->map(fn (CreditCardInstallment $installment) => PurchaseResponseData::installment($installment, $installment->purchase))
+                ->map(fn (CreditCardInstallment $installment) => [
+                    ...PurchaseResponseData::installment($installment, $installment->purchase),
+                    'purchase_id' => $installment->purchase->id,
+                    'category' => [
+                        'id' => $installment->purchase->category->id,
+                        'name' => $installment->purchase->category->name,
+                        'icon' => $installment->purchase->category->icon,
+                        'color' => $installment->purchase->category->color,
+                    ],
+                    'purchase_total_amount' => CreditCardResponseData::money($installment->purchase->total_amount_centavos),
+                    'is_directly_editable' => PurchaseResponseData::isDirectlyEditable($installment->purchase),
+                ])
                 ->all(),
             'payments' => $this->resource->payments
                 ->map(fn ($payment) => PaymentResponseData::from($payment))
