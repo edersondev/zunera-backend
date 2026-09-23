@@ -60,6 +60,10 @@ final class TransferReportingExclusionTest extends TestCase
         ]);
 
         self::assertSame($baseline, $service->totals($user));
+        self::assertSame($baseline, $service->totals($user, new FinancialHistoryFilterData(
+            from: today()->toDateString(),
+            to: today()->toDateString(),
+        )));
         self::assertSame('transfer', $this->entry($service, $user, 'transfer'));
         self::assertNull($pending->refresh()->removed_at);
         self::assertNotNull($removed->refresh()->removed_at);

@@ -242,6 +242,93 @@ final class ListFinancialHistoryTest extends TestCase
     }
 
     #[Test]
+    public function period_totals_count_only_movements_inside_the_inclusive_range(): void
+    {
+        $user = $this->signIn();
+        $account = FinancialAccount::factory()->create(['user_id' => $user->id, 'current_balance_centavos' => 500_000]);
+        $destination = FinancialAccount::factory()->create(['user_id' => $user->id, 'current_balance_centavos' => 0]);
+        $this->transaction($user, $account, 'income', '2026-08-31', 90_000);
+        $this->transaction($user, $account, 'income', '2026-09-01', 100_000);
+        $this->transaction($user, $account, 'expense', '2026-09-30', 30_000);
+        $this->transaction($user, $account, 'expense', '2026-10-01', 70_000);
+        $transfer = Transfer::factory()->create([
+            'user_id' => $user->id,
+            'source_financial_account_id' => $account->id,
+            'destination_financial_account_id' => $destination->id,
+            'amount_centavos' => 40_000,
+            'transfer_date' => '2026-09-15',
+        ]);
+        app(TransferBalanceReconciler::class)->reconcile(null, $transfer);
+
+        $september = $this->getJson('/api/v1/financial-history?from=2026-09-01&to=2026-09-30')->assertOk();
+
+        self::assertSame(100_000, $september->json('meta.totals.income_centavos'));
+        self::assertSame(30_000, $september->json('meta.totals.expense_centavos'));
+        self::assertSame(70_000, $september->json('meta.totals.financial_result_centavos'));
+
+        $october = $this->getJson('/api/v1/financial-history?from=2026-10-01&to=2026-10-31')->assertOk();
+
+        self::assertSame(0, $october->json('meta.totals.income_centavos'));
+        self::assertSame(70_000, $october->json('meta.totals.expense_centavos'));
+        self::assertSame(-70_000, $october->json('meta.totals.financial_result_centavos'));
+
+        $empty = $this->getJson('/api/v1/financial-history?from=2026-11-01&to=2026-11-30')->assertOk();
+
+        self::assertSame(0, $empty->json('meta.totals.income_centavos'));
+        self::assertSame(0, $empty->json('meta.totals.expense_centavos'));
+        self::assertSame(0, $empty->json('meta.totals.financial_result_centavos'));
+
+        $allTime = $this->getJson('/api/v1/financial-history')->assertOk();
+
+        self::assertSame(190_000, $allTime->json('meta.totals.income_centavos'));
+        self::assertSame(100_000, $allTime->json('meta.totals.expense_centavos'));
+        self::assertSame(90_000, $allTime->json('meta.totals.financial_result_centavos'));
+    }
+
+    #[Test]
+    public function period_totals_ignore_pending_and_removed_movements(): void
+    {
+        $user = $this->signIn();
+        $account = FinancialAccount::factory()->create(['user_id' => $user->id, 'current_balance_centavos' => 500_000]);
+        $this->transaction($user, $account, 'income', '2026-09-05', 50_000);
+        Transaction::factory()->create([
+            'user_id' => $user->id,
+            'financial_account_id' => $account->id,
+            'category_id' => Category::factory()->create([
+                'user_id' => $user->id,
+                'classification' => CategoryClassification::Income,
+            ])->id,
+            'type' => 'income',
+            'status' => TransactionStatus::Pending,
+            'amount_centavos' => 25_000,
+            'transaction_date' => '2026-09-06',
+            'description' => 'Receita pendente',
+        ]);
+        Transaction::factory()->create([
+            'user_id' => $user->id,
+            'financial_account_id' => $account->id,
+            'category_id' => Category::factory()->create([
+                'user_id' => $user->id,
+                'classification' => CategoryClassification::Expense,
+            ])->id,
+            'type' => 'expense',
+            'status' => TransactionStatus::Effective,
+            'amount_centavos' => 15_000,
+            'transaction_date' => '2026-09-07',
+            'description' => 'Despesa removida',
+            'removed_at' => now(),
+        ]);
+
+        $totals = $this->getJson('/api/v1/financial-history?from=2026-09-01&to=2026-09-30')
+            ->assertOk()
+            ->json('meta.totals');
+
+        self::assertSame(50_000, $totals['income_centavos']);
+        self::assertSame(0, $totals['expense_centavos']);
+        self::assertSame(50_000, $totals['financial_result_centavos']);
+    }
+
+    #[Test]
     public function guest_access_is_denied_and_transaction_totals_ignore_transfers(): void
     {
         $this->getJson('/api/v1/financial-history')->assertUnauthorized();

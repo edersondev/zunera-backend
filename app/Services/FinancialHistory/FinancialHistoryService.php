@@ -104,16 +104,23 @@ final class FinancialHistoryService
     /**
      * Income, expense, and financial-result aggregates derived only from effective
      * income/expense movements. Transfers are a separate movement kind and never
-     * contribute to these reporting totals.
+     * contribute to these reporting totals. When the caller supplies a filter
+     * carrying a period, only movements dated inside that inclusive range are
+     * counted, so the totals always describe the listed period; without a period
+     * the aggregates stay all-time.
      *
      * @return array{income_centavos: int, expense_centavos: int, financial_result_centavos: int, currency_code: string}
      */
-    public function totals(User $user): array
+    public function totals(User $user, ?FinancialHistoryFilterData $filters = null): array
     {
+        $from = $filters?->from;
+        $to = $filters?->to;
         $row = DB::table('transactions')
             ->where('user_id', $user->id)
             ->whereNull('removed_at')
             ->where('status', 'effective')
+            ->when($from !== null, fn (Builder $query) => $query->whereDate('transaction_date', '>=', $from))
+            ->when($to !== null, fn (Builder $query) => $query->whereDate('transaction_date', '<=', $to))
             ->selectRaw("COALESCE(SUM(CASE WHEN type = 'income' THEN amount_centavos ELSE 0 END), 0) as income_centavos")
             ->selectRaw("COALESCE(SUM(CASE WHEN type = 'expense' THEN amount_centavos ELSE 0 END), 0) as expense_centavos")
             ->first();
