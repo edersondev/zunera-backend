@@ -56,13 +56,15 @@ final class CreditCardStatementTest extends TestCase
         $this->getJson('/api/v1/credit-card-statements/'.$statement->id)
             ->assertOk()
             ->assertJsonPath('data.status', 'open')
-            ->assertJsonPath('data.is_current', true);
+            ->assertJsonPath('data.is_current', true)
+            ->assertJsonPath('data.installments.0.is_directly_editable', true);
 
         $this->cardSignIn('2026-09-11', $user);
         $this->getJson('/api/v1/credit-card-statements/'.$statement->id)
             ->assertOk()
             ->assertJsonPath('data.status', 'closed')
             ->assertJsonPath('data.is_current', false)
+            ->assertJsonPath('data.installments.0.is_directly_editable', false)
             ->assertJsonPath('data.outstanding_amount.amount_centavos', 30_000)
             ->assertJsonPath('data.net_amount.amount_centavos', 30_000);
 
@@ -109,6 +111,16 @@ final class CreditCardStatementTest extends TestCase
             ->assertJsonCount(1, 'data.installments')
             ->assertJsonPath('data.installments.0.description', 'Compra teste')
             ->assertJsonPath('data.installments.0.purchase_date', '2026-09-05')
+            ->assertJsonPath('data.installments.0.purchase_id', $purchase->id)
+            ->assertJsonPath('data.installments.0.category.id', $category->id)
+            ->assertJsonPath('data.installments.0.category.name', $category->name)
+            ->assertJsonPath('data.installments.0.category.icon', $category->icon)
+            ->assertJsonPath('data.installments.0.category.color', $category->color)
+            ->assertJsonPath('data.installments.0.purchase_total_amount.amount_centavos', 60_000)
+            ->assertJsonPath('data.installments.0.amount.amount_centavos', 30_000)
+            ->assertJsonPath('data.installments.0.credit_adjustment.amount_centavos', 5_000)
+            ->assertJsonPath('data.installments.0.recognized_amount.amount_centavos', 25_000)
+            ->assertJsonPath('data.installments.0.is_directly_editable', false)
             ->assertJsonCount(1, 'data.payments')
             ->assertJsonCount(1, 'data.credit_events');
 
