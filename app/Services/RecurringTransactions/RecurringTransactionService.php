@@ -11,6 +11,7 @@ use App\Enums\Categories\CategoryStatus;
 use App\Enums\CreditCards\CreditCardStatus;
 use App\Enums\FinancialAccounts\AccountStatus;
 use App\Enums\RecurringTransactions\CardGenerationMode;
+use App\Enums\RecurringTransactions\CardOccurrenceState;
 use App\Enums\RecurringTransactions\RecurrencePausedReason;
 use App\Enums\RecurringTransactions\RecurrenceState;
 use App\Enums\Transactions\TransactionType;
@@ -472,9 +473,17 @@ final class RecurringTransactionService
 
         $cardCounts = DB::table('recurring_card_occurrences')
             ->whereIn('recurring_transaction_id', $cardRuleIds)
-            ->selectRaw('recurring_transaction_id, count(*) as total')
+            ->selectRaw(
+                'recurring_transaction_id, count(*) as total, sum(case when state in (?, ?, ?) then 1 else 0 end) as reviewable_total',
+                [
+                    CardOccurrenceState::Expected->value,
+                    CardOccurrenceState::AwaitingOverLimit->value,
+                    CardOccurrenceState::Failed->value,
+                ],
+            )
             ->groupBy('recurring_transaction_id')
-            ->pluck('total', 'recurring_transaction_id');
+            ->get()
+            ->keyBy('recurring_transaction_id');
 
         $cardDates = DB::table('recurring_card_occurrences')
             ->whereIn('recurring_transaction_id', $cardRuleIds)
@@ -487,9 +496,10 @@ final class RecurringTransactionService
 
         foreach ($rules as $rule) {
             $count = $rule->isCardDestination()
-                ? (int) ($cardCounts[$rule->id] ?? 0)
+                ? (int) ($cardCounts[$rule->id]->total ?? 0)
                 : (int) ($counts[$rule->id] ?? 0);
             $rule->setAttribute('generated_occurrence_count', $count);
+            $rule->setAttribute('reviewable_occurrence_count', (int) ($cardCounts[$rule->id]->reviewable_total ?? 0));
             $rule->setAttribute(
                 'next_expected_occurrence',
                 $this->calculator->nextExpectedOccurrence($rule, $today, $generatedByRule[$rule->id] ?? []),

@@ -51,6 +51,7 @@ final class RecurringTransactionResource extends JsonResource
             ],
             'next_expected_occurrence' => $rule->getAttribute('next_expected_occurrence'),
             'generated_occurrence_count' => (int) ($rule->getAttribute('generated_occurrence_count') ?? 0),
+            'reviewable_occurrence_count' => (int) ($rule->getAttribute('reviewable_occurrence_count') ?? 0),
             'created_at' => $rule->created_at?->toIso8601String(),
             'updated_at' => $rule->updated_at?->toIso8601String(),
         ];
