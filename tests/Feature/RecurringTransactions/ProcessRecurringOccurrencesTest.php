@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Tests\Feature\RecurringTransactions;
 
 use App\Enums\RecurringTransactions\RecurrenceFrequency;
+use App\Enums\RecurringTransactions\RecurrencePausedReason;
+use App\Enums\RecurringTransactions\RecurrenceState;
 use App\Enums\Transactions\TransactionStatus;
 use App\Models\RecurringTransaction;
 use App\Models\Transaction;
@@ -13,11 +15,55 @@ use App\Services\RecurringTransactions\RecurringOccurrenceService;
 use Carbon\CarbonImmutable;
 use Illuminate\Console\Command;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
 
 final class ProcessRecurringOccurrencesTest extends RecurringTransactionFeatureTestCase
 {
     use RefreshDatabase;
+
+    #[Test]
+    public function account_processing_rechecks_a_rule_paused_after_its_initial_read(): void
+    {
+        $user = $this->signInUser();
+        $account = $this->ownedAccount($user);
+        $category = $this->ownedCategory($user);
+        $today = RecurringDateRange::businessDate();
+        $rule = $this->rule($user, [
+            'financial_account_id' => $account->id,
+            'category_id' => $category->id,
+            'start_date' => $today,
+            'eligibility_starts_on' => $today,
+            'schedule_cursor' => $today,
+        ]);
+
+        $transactionLevel = DB::transactionLevel();
+        $paused = false;
+        $event = 'eloquent.retrieved: '.RecurringTransaction::class;
+        Event::listen($event, function (RecurringTransaction $loaded) use ($rule, $transactionLevel, &$paused): void {
+            if ($paused || $loaded->id !== $rule->id || DB::transactionLevel() !== $transactionLevel) {
+                return;
+            }
+
+            $paused = true;
+            RecurringTransaction::query()->whereKey($rule->id)->update([
+                'state' => RecurrenceState::Paused->value,
+                'paused_reason' => RecurrencePausedReason::User->value,
+            ]);
+        });
+
+        try {
+            $created = app(RecurringOccurrenceService::class)->processRule($rule->id, $today);
+        } finally {
+            Event::forget($event);
+        }
+
+        self::assertTrue($paused);
+        self::assertSame(0, $created);
+        self::assertSame(0, Transaction::query()->count());
+        self::assertSame(RecurrenceState::Paused, $rule->fresh()->state);
+    }
 
     #[Test]
     public function due_rule_creates_one_pending_occurrence_per_eligible_date_without_balance_effect(): void

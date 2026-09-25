@@ -8,14 +8,19 @@ use App\Data\RecurringTransactions\CreateRecurringTransactionData;
 use App\Data\RecurringTransactions\RecurringTransactionFilterData;
 use App\Data\RecurringTransactions\UpdateRecurringTransactionData;
 use App\Enums\Categories\CategoryStatus;
+use App\Enums\CreditCards\CreditCardStatus;
 use App\Enums\FinancialAccounts\AccountStatus;
+use App\Enums\RecurringTransactions\CardGenerationMode;
+use App\Enums\RecurringTransactions\CardOccurrenceState;
 use App\Enums\RecurringTransactions\RecurrencePausedReason;
 use App\Enums\RecurringTransactions\RecurrenceState;
 use App\Enums\Transactions\TransactionType;
 use App\Exceptions\RecurringTransactions\RecurrenceStateException;
 use App\Http\Resources\RecurringTransactions\RecurringTransactionResource;
 use App\Models\Category;
+use App\Models\CreditCard;
 use App\Models\FinancialAccount;
+use App\Models\RecurringCardOccurrence;
 use App\Models\RecurringTransaction;
 use App\Models\Transaction;
 use App\Models\User;
@@ -30,6 +35,7 @@ final class RecurringTransactionService
     public function __construct(
         private readonly RecurringScheduleCalculator $calculator,
         private readonly RecurringIdempotencyService $idempotency,
+        private readonly RecurringOccurrenceService $occurrences,
     ) {}
 
     /** @return array{rule: RecurringTransaction, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool} */
@@ -37,7 +43,10 @@ final class RecurringTransactionService
     {
         return DB::transaction(function () use ($user, $data, $idempotencyKey): array {
             $fingerprint = $this->fingerprint('create', [
+                'destination_type' => $data->destinationType->value,
                 'financial_account_id' => $data->financialAccountId,
+                'credit_card_id' => $data->creditCardId,
+                'generation_mode' => $data->generationMode?->value,
                 'category_id' => $data->categoryId,
                 'type' => $data->type->value,
                 'amount_centavos' => $data->amountCentavos,
@@ -49,15 +58,14 @@ final class RecurringTransactionService
             ]);
 
             $result = $this->idempotency->execute($user->id, $idempotencyKey, 'create', $fingerprint, function () use ($user, $data): array {
-                $account = $this->ownedAccount($user, $data->financialAccountId, true);
                 $category = $this->availableCategory($user, $data->categoryId, true, $data->type);
                 $businessDate = RecurringDateRange::businessDate();
                 $eligibilityStart = max($data->startDate, $businessDate);
                 $hasEnded = $data->endDate !== null && $data->endDate < $businessDate;
 
-                $rule = RecurringTransaction::query()->create([
+                $attributes = [
                     'user_id' => $user->id,
-                    'financial_account_id' => $account->id,
+                    'destination_type' => $data->destinationType,
                     'category_id' => $category->id,
                     'type' => $data->type,
                     'amount_centavos' => $data->amountCentavos,
@@ -72,7 +80,25 @@ final class RecurringTransactionService
                     'eligibility_starts_on' => $eligibilityStart,
                     'schedule_cursor' => $eligibilityStart,
                     'ended_at' => $hasEnded ? now() : null,
-                ]);
+                ];
+
+                if ($data->destinationType->isAccount()) {
+                    if ($data->financialAccountId === null) {
+                        throw ValidationException::withMessages(['financial_account_id' => ['Select a financial account for the recurring transaction.']]);
+                    }
+                    $attributes['financial_account_id'] = $this->ownedAccount($user, $data->financialAccountId, true)->id;
+                    $attributes['credit_card_id'] = null;
+                    $attributes['generation_mode'] = null;
+                } else {
+                    if ($data->creditCardId === null) {
+                        throw ValidationException::withMessages(['credit_card_id' => ['Select a credit card for the recurring expense.']]);
+                    }
+                    $attributes['credit_card_id'] = $this->ownedActiveCard($user, $data->creditCardId)->id;
+                    $attributes['financial_account_id'] = null;
+                    $attributes['generation_mode'] = $data->generationMode ?? CardGenerationMode::Automatic;
+                }
+
+                $rule = RecurringTransaction::query()->create($attributes);
 
                 return ['recurring_transaction_id' => $rule->id, 'status' => 201];
             });
@@ -84,7 +110,7 @@ final class RecurringTransactionService
     public function findOwned(User $user, int $recurringTransactionId): RecurringTransaction
     {
         $rule = RecurringTransaction::query()
-            ->with(['financialAccount', 'category'])
+            ->with(['financialAccount', 'creditCard', 'category'])
             ->where('user_id', $user->id)
             ->find($recurringTransactionId);
 
@@ -103,6 +129,9 @@ final class RecurringTransactionService
         if ($filters->financialAccountId !== null) {
             $this->ownedAccount($user, $filters->financialAccountId, false);
         }
+        if ($filters->creditCardId !== null) {
+            $this->ownedActiveCard($user, $filters->creditCardId, false);
+        }
         if ($filters->categoryId !== null) {
             $this->availableCategory($user, $filters->categoryId, false, null);
         }
@@ -110,7 +139,9 @@ final class RecurringTransactionService
         $rules = RecurringTransaction::query()
             ->where('user_id', $user->id)
             ->when($filters->type !== null, fn ($query) => $query->where('type', $filters->type))
+            ->when($filters->destinationType !== null, fn ($query) => $query->where('destination_type', $filters->destinationType))
             ->when($filters->financialAccountId !== null, fn ($query) => $query->where('financial_account_id', $filters->financialAccountId))
+            ->when($filters->creditCardId !== null, fn ($query) => $query->where('credit_card_id', $filters->creditCardId))
             ->when($filters->categoryId !== null, fn ($query) => $query->where('category_id', $filters->categoryId))
             ->when($filters->frequency !== null, fn ($query) => $query->where('frequency', $filters->frequency))
             ->when($filters->state !== null, fn ($query) => $query->where('state', $filters->state))
@@ -129,17 +160,25 @@ final class RecurringTransactionService
 
         $page = max(1, $filters->page);
         $slice = $ordered->slice(($page - 1) * $filters->perPage, $filters->perPage)->values();
-        $slice->load(['financialAccount', 'category']);
+        $slice->load(['financialAccount', 'creditCard', 'category']);
 
         return new LengthAwarePaginator($slice, $ordered->count(), $filters->perPage, $page, [
             'path' => LengthAwarePaginator::resolveCurrentPath(),
         ]);
     }
 
-    /** @return LengthAwarePaginator<int, Transaction> */
+    /** @return LengthAwarePaginator<int, Transaction|RecurringCardOccurrence> */
     public function listOccurrences(User $user, RecurringTransaction $rule, int $page, int $perPage): LengthAwarePaginator
     {
         $owned = $this->findOwned($user, (int) $rule->id);
+
+        if ($owned->isCardDestination()) {
+            return $owned->cardOccurrences()
+                ->with(['originalCreditCard', 'overrideCreditCard', 'originalCategory', 'overrideCategory', 'purchase'])
+                ->orderByDesc('scheduled_date')
+                ->orderByDesc('id')
+                ->paginate($perPage, ['*'], 'page', max(1, $page));
+        }
 
         return $owned->generatedOccurrences()
             ->orderByDesc('recurrence_scheduled_date')
@@ -147,13 +186,33 @@ final class RecurringTransactionService
             ->paginate($perPage, ['*'], 'page', max(1, $page));
     }
 
+    public function findOwnedOccurrence(User $user, int $occurrenceId): RecurringCardOccurrence
+    {
+        $occurrence = RecurringCardOccurrence::query()
+            ->where('user_id', $user->id)
+            ->find($occurrenceId);
+
+        if (! $occurrence instanceof RecurringCardOccurrence) {
+            throw new NotFoundHttpException('Occurrence not found or not accessible to the signed-in user.');
+        }
+
+        return $occurrence;
+    }
+
     /** @return array{rule: RecurringTransaction, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool} */
     public function update(User $user, RecurringTransaction $rule, UpdateRecurringTransactionData $data, string $idempotencyKey): array
     {
+        if ($rule->isCardDestination() && $rule->isActive()) {
+            $this->occurrences->representDueDates($rule);
+        }
+
         return DB::transaction(function () use ($user, $rule, $data, $idempotencyKey): array {
             $locked = RecurringTransaction::query()->where('user_id', $user->id)->lockForUpdate()->find($rule->id);
             if (! $locked instanceof RecurringTransaction) {
                 throw new NotFoundHttpException('Recurring transaction not found or not accessible to the signed-in user.');
+            }
+            if ($locked->isCardDestination()) {
+                $this->occurrences->assertDueDatesRepresented($locked);
             }
 
             $fingerprint = $this->fingerprint('update:'.$locked->id, $this->serializableChanges($data->changes));
@@ -165,13 +224,34 @@ final class RecurringTransactionService
                 if ($locked->isPaused() && $locked->paused_reason !== RecurrencePausedReason::AssociationArchived) {
                     throw RecurrenceStateException::notActive();
                 }
+                if ($data->has('destination_type') && $data->changes['destination_type'] !== $locked->destinationType()) {
+                    throw ValidationException::withMessages(['destination_type' => ['Destination type cannot be changed after creation.']]);
+                }
 
                 $type = $data->has('type') ? $data->changes['type'] : $locked->type;
-                $accountId = $data->has('financial_account_id') ? (int) $data->changes['financial_account_id'] : (int) $locked->financial_account_id;
                 $categoryId = $data->has('category_id') ? (int) $data->changes['category_id'] : (int) $locked->category_id;
 
-                if ($data->has('financial_account_id')) {
-                    $this->ownedAccount($user, $accountId, true);
+                if ($locked->isCardDestination()) {
+                    if ($data->has('financial_account_id')) {
+                        throw ValidationException::withMessages(['financial_account_id' => ['Card rules cannot select a financial account.']]);
+                    }
+                    if ($type instanceof TransactionType && $type !== TransactionType::Expense) {
+                        throw ValidationException::withMessages(['type' => ['Credit card recurring rules must be expenses.']]);
+                    }
+                    if ($data->has('credit_card_id')) {
+                        $this->ownedActiveCard($user, (int) $data->changes['credit_card_id']);
+                    }
+                    $accountId = null;
+                    $cardId = $data->has('credit_card_id') ? (int) $data->changes['credit_card_id'] : (int) $locked->credit_card_id;
+                } else {
+                    if ($data->has('credit_card_id') || $data->has('generation_mode')) {
+                        throw ValidationException::withMessages(['credit_card_id' => ['Account rules cannot select a credit card or generation mode.']]);
+                    }
+                    $accountId = $data->has('financial_account_id') ? (int) $data->changes['financial_account_id'] : (int) $locked->financial_account_id;
+                    if ($data->has('financial_account_id')) {
+                        $this->ownedAccount($user, $accountId, true);
+                    }
+                    $cardId = null;
                 }
                 if ($data->has('category_id') || $data->has('type')) {
                     $this->availableCategory($user, $categoryId, true, $type instanceof TransactionType ? $type : null);
@@ -184,9 +264,13 @@ final class RecurringTransactionService
                 }
 
                 foreach ($data->changes as $key => $value) {
+                    if ($key === 'destination_type') {
+                        continue;
+                    }
                     $locked->{$key} = $value;
                 }
                 $locked->financial_account_id = $accountId;
+                $locked->credit_card_id = $cardId;
                 $locked->category_id = $categoryId;
                 $locked->start_date = $startDate;
                 $locked->end_date = $endDate;
@@ -223,6 +307,9 @@ final class RecurringTransactionService
             if (! $locked->isActive()) {
                 throw RecurrenceStateException::notActive();
             }
+            if ($locked->isCardDestination()) {
+                $this->occurrences->assertDueDatesRepresented($locked);
+            }
 
             $locked->state = RecurrenceState::Paused;
             $locked->paused_reason = RecurrencePausedReason::User;
@@ -243,13 +330,22 @@ final class RecurringTransactionService
                 throw RecurrenceStateException::notPaused();
             }
 
-            $account = $locked->financialAccount()->first();
             $category = $locked->category()->first();
-            $associationAvailable = $account instanceof FinancialAccount
-                && $account->status === AccountStatus::Active
-                && $category instanceof Category
+            $categoryAvailable = $category instanceof Category
                 && $category->status === CategoryStatus::Active
                 && $category->classification->value === $locked->type->value;
+
+            if ($locked->isCardDestination()) {
+                $card = $locked->creditCard()->first();
+                $associationAvailable = $categoryAvailable
+                    && $card instanceof CreditCard
+                    && $card->status === CreditCardStatus::Active;
+            } else {
+                $account = $locked->financialAccount()->first();
+                $associationAvailable = $categoryAvailable
+                    && $account instanceof FinancialAccount
+                    && $account->status === AccountStatus::Active;
+            }
 
             if (! $associationAvailable) {
                 throw RecurrenceStateException::associationUnavailable();
@@ -276,6 +372,9 @@ final class RecurringTransactionService
             if ($locked->isEnded()) {
                 throw RecurrenceStateException::ended();
             }
+            if ($locked->isCardDestination()) {
+                $this->occurrences->assertDueDatesRepresented($locked);
+            }
 
             $locked->state = RecurrenceState::Ended;
             $locked->paused_reason = null;
@@ -290,6 +389,12 @@ final class RecurringTransactionService
     public function pauseForArchivedAccount(int $accountId): int
     {
         return $this->pauseMatching(fn () => RecurringTransaction::query()->active()->where('financial_account_id', $accountId)->get());
+    }
+
+    /** Pause every active card rule that depends on a card archived by its owner. */
+    public function pauseForArchivedCard(int $cardId): int
+    {
+        return $this->pauseMatching(fn () => RecurringTransaction::query()->active()->where('credit_card_id', $cardId)->get());
     }
 
     /** Pause every active rule that depends on a category archived by its owner. */
@@ -315,6 +420,10 @@ final class RecurringTransactionService
      * @return array{rule: RecurringTransaction, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool} */
     private function changeLifecycle(User $user, RecurringTransaction $rule, string $action, string $idempotencyKey, callable $operation): array
     {
+        if (in_array($action, ['pause', 'end'], true) && $rule->isCardDestination() && $rule->isActive()) {
+            $this->occurrences->representDueDates($rule);
+        }
+
         return DB::transaction(function () use ($user, $rule, $action, $idempotencyKey, $operation): array {
             $locked = RecurringTransaction::query()->where('user_id', $user->id)->lockForUpdate()->find($rule->id);
             if (! $locked instanceof RecurringTransaction) {
@@ -341,16 +450,18 @@ final class RecurringTransactionService
         }
 
         $ids = $rules->pluck('id')->all();
+        $accountRuleIds = $rules->filter(fn (RecurringTransaction $rule): bool => $rule->isAccountDestination())->pluck('id')->all();
+        $cardRuleIds = $rules->filter(fn (RecurringTransaction $rule): bool => $rule->isCardDestination())->pluck('id')->all();
         $today = RecurringDateRange::businessDate();
 
         $counts = DB::table('transactions')
-            ->whereIn('recurring_transaction_id', $ids)
+            ->whereIn('recurring_transaction_id', $accountRuleIds)
             ->selectRaw('recurring_transaction_id, count(*) as total')
             ->groupBy('recurring_transaction_id')
             ->pluck('total', 'recurring_transaction_id');
 
         $upcoming = DB::table('transactions')
-            ->whereIn('recurring_transaction_id', $ids)
+            ->whereIn('recurring_transaction_id', $accountRuleIds)
             ->whereNotNull('recurrence_scheduled_date')
             ->whereDate('recurrence_scheduled_date', '>=', $today)
             ->get(['recurring_transaction_id', 'recurrence_scheduled_date']);
@@ -360,8 +471,35 @@ final class RecurringTransactionService
             $generatedByRule[(int) $row->recurring_transaction_id][$this->asDateString($row->recurrence_scheduled_date)] = true;
         }
 
+        $cardCounts = DB::table('recurring_card_occurrences')
+            ->whereIn('recurring_transaction_id', $cardRuleIds)
+            ->selectRaw(
+                'recurring_transaction_id, count(*) as total, sum(case when state in (?, ?, ?) then 1 else 0 end) as reviewable_total',
+                [
+                    CardOccurrenceState::Expected->value,
+                    CardOccurrenceState::AwaitingOverLimit->value,
+                    CardOccurrenceState::Failed->value,
+                ],
+            )
+            ->groupBy('recurring_transaction_id')
+            ->get()
+            ->keyBy('recurring_transaction_id');
+
+        $cardDates = DB::table('recurring_card_occurrences')
+            ->whereIn('recurring_transaction_id', $cardRuleIds)
+            ->whereDate('scheduled_date', '>=', $today)
+            ->get(['recurring_transaction_id', 'scheduled_date']);
+
+        foreach ($cardDates as $row) {
+            $generatedByRule[(int) $row->recurring_transaction_id][$this->asDateString($row->scheduled_date)] = true;
+        }
+
         foreach ($rules as $rule) {
-            $rule->setAttribute('generated_occurrence_count', (int) ($counts[$rule->id] ?? 0));
+            $count = $rule->isCardDestination()
+                ? (int) ($cardCounts[$rule->id]->total ?? 0)
+                : (int) ($counts[$rule->id] ?? 0);
+            $rule->setAttribute('generated_occurrence_count', $count);
+            $rule->setAttribute('reviewable_occurrence_count', (int) ($cardCounts[$rule->id]->reviewable_total ?? 0));
             $rule->setAttribute(
                 'next_expected_occurrence',
                 $this->calculator->nextExpectedOccurrence($rule, $today, $generatedByRule[$rule->id] ?? []),
@@ -386,6 +524,19 @@ final class RecurringTransactionService
         }
 
         return $account;
+    }
+
+    private function ownedActiveCard(User $user, int $cardId, bool $mustBeActive = true): CreditCard
+    {
+        $card = CreditCard::query()->where('user_id', $user->id)->find($cardId);
+        if (! $card instanceof CreditCard) {
+            throw new NotFoundHttpException('Credit card not found or not accessible to the signed-in user.');
+        }
+        if ($mustBeActive && $card->status !== CreditCardStatus::Active) {
+            throw ValidationException::withMessages(['credit_card_id' => ['Archived credit cards cannot be selected.']]);
+        }
+
+        return $card;
     }
 
     private function availableCategory(User $user, int $categoryId, bool $mustBeActive, ?TransactionType $type): Category

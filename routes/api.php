@@ -74,6 +74,9 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/recurring-transactions/{recurring_transaction_id}', [RecurringTransactionController::class, 'show'])->whereNumber('recurring_transaction_id');
         Route::patch('/recurring-transactions/{recurring_transaction_id}', [RecurringTransactionController::class, 'update'])->whereNumber('recurring_transaction_id');
         Route::get('/recurring-transactions/{recurring_transaction_id}/occurrences', [RecurringTransactionController::class, 'occurrences'])->whereNumber('recurring_transaction_id');
+        Route::post('/recurring-transactions/{recurring_transaction_id}/occurrences/{occurrence_id}/confirm', [RecurringTransactionController::class, 'confirm'])->whereNumber('recurring_transaction_id')->whereNumber('occurrence_id');
+        Route::post('/recurring-transactions/{recurring_transaction_id}/occurrences/{occurrence_id}/dismiss', [RecurringTransactionController::class, 'dismiss'])->whereNumber('recurring_transaction_id')->whereNumber('occurrence_id');
+        Route::post('/recurring-transactions/{recurring_transaction_id}/occurrences/{occurrence_id}/retry', [RecurringTransactionController::class, 'retry'])->whereNumber('recurring_transaction_id')->whereNumber('occurrence_id');
         Route::post('/recurring-transactions/{recurring_transaction_id}/pause', [RecurringTransactionController::class, 'pause'])->whereNumber('recurring_transaction_id');
         Route::post('/recurring-transactions/{recurring_transaction_id}/resume', [RecurringTransactionController::class, 'resume'])->whereNumber('recurring_transaction_id');
         Route::post('/recurring-transactions/{recurring_transaction_id}/end', [RecurringTransactionController::class, 'end'])->whereNumber('recurring_transaction_id');

@@ -9,12 +9,15 @@ use App\Data\CreditCards\CreatePurchaseData;
 use App\Data\CreditCards\PurchaseResponseData;
 use App\Enums\Categories\CategoryClassification;
 use App\Enums\Categories\CategoryStatus;
+use App\Enums\RecurringTransactions\CardOccurrenceState;
 use App\Exceptions\CreditCards\CreditCardStateException;
+use App\Exceptions\RecurringTransactions\RecurrenceStateException;
 use App\Models\Category;
 use App\Models\CreditCard;
 use App\Models\CreditCardInstallment;
 use App\Models\CreditCardPurchase;
 use App\Models\CreditCardStatement;
+use App\Models\RecurringCardOccurrence;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -58,7 +61,7 @@ final class CreditCardPurchaseService
                         'installment_count' => ['Each installment must be at least one centavo.'],
                     ]);
                 }
-                $this->assertWithinAvailableCredit($lockedCard, $data);
+                $this->assertWithinAvailableCredit($lockedCard, $data->totalAmountCentavos, $data->overLimitConfirmed, $data->confirmedAvailableCreditCentavos);
 
                 $purchase = CreditCardPurchase::query()->create([
                     'user_id' => $user->id,
@@ -112,7 +115,7 @@ final class CreditCardPurchaseService
     public function findOwned(User $user, int $purchaseId): CreditCardPurchase
     {
         $purchase = CreditCardPurchase::query()
-            ->with(['creditCard', 'category', 'installments.statement', 'creditEvents.applications'])
+            ->with(['creditCard', 'category', 'installments.statement', 'creditEvents.applications', 'recurringCardOccurrence'])
             ->where('user_id', $user->id)
             ->find($purchaseId);
 
@@ -127,7 +130,7 @@ final class CreditCardPurchaseService
     public function list(User $user, CreditCard $card, int $page, int $perPage): LengthAwarePaginator
     {
         return CreditCardPurchase::query()
-            ->with(['creditCard', 'category', 'installments.statement', 'creditEvents.applications'])
+            ->with(['creditCard', 'category', 'installments.statement', 'creditEvents.applications', 'recurringCardOccurrence'])
             ->where('user_id', $user->id)
             ->where('credit_card_id', $card->id)
             ->orderByDesc('purchase_date')
@@ -140,18 +143,134 @@ final class CreditCardPurchaseService
         return $this->lockOwnedCard($user, $cardId, false);
     }
 
-    private function assertWithinAvailableCredit(CreditCard $card, CreatePurchaseData $data): void
-    {
+    /**
+     * Source-aware recording path shared by automatic generation, owner approval,
+     * and confirmation. It reuses the same card/category/credit, allocation,
+     * reconciliation, and idempotency rules as manual purchases, with a single
+     * installment and an atomic occurrence-to-recorded transition.
+     */
+    public function recordOccurrencePurchase(
+        User $user,
+        RecurringCardOccurrence $occurrence,
+        int $cardId,
+        int $categoryId,
+        int $amountCentavos,
+        string $purchaseDate,
+        string $description,
+        ?string $notes,
+        bool $overLimitConfirmed = false,
+        ?int $confirmedAvailableCreditCentavos = null,
+        ?string $confirmationClaimKey = null,
+        ?int $confirmationChoiceVersion = null,
+    ): CreditCardPurchase {
+        return DB::transaction(function () use (
+            $user,
+            $occurrence,
+            $cardId,
+            $categoryId,
+            $amountCentavos,
+            $purchaseDate,
+            $description,
+            $notes,
+            $overLimitConfirmed,
+            $confirmedAvailableCreditCentavos,
+            $confirmationClaimKey,
+            $confirmationChoiceVersion,
+        ): CreditCardPurchase {
+            $lockedCard = $this->lockOwnedCard($user, $cardId);
+            if (! $lockedCard->isActive()) {
+                throw CreditCardStateException::cardArchived();
+            }
+
+            $lockedOccurrence = RecurringCardOccurrence::query()
+                ->where('user_id', $user->id)
+                ->lockForUpdate()
+                ->find($occurrence->id);
+
+            if (! $lockedOccurrence instanceof RecurringCardOccurrence) {
+                throw new NotFoundHttpException('Occurrence not found or not accessible to the signed-in user.');
+            }
+            if ($lockedOccurrence->state === CardOccurrenceState::Recorded) {
+                throw RecurrenceStateException::occurrenceAlreadyRecorded();
+            }
+            if ($lockedOccurrence->state === CardOccurrenceState::Dismissed) {
+                throw RecurrenceStateException::occurrenceDismissed();
+            }
+            if ($confirmationClaimKey !== null && (
+                $lockedOccurrence->action_claim_key !== $confirmationClaimKey
+                || $lockedOccurrence->action_choice_version !== $confirmationChoiceVersion
+                || $lockedOccurrence->actual_amount_centavos !== $amountCentavos
+                || $lockedOccurrence->actual_purchase_date?->toDateString() !== $purchaseDate
+                || ($lockedOccurrence->credit_card_id_override ?? $lockedOccurrence->credit_card_id_original) !== $cardId
+                || ($lockedOccurrence->category_id_override ?? $lockedOccurrence->category_id_original) !== $categoryId
+            )) {
+                throw RecurrenceStateException::occurrenceActionInProgress();
+            }
+
+            $category = $this->availableExpenseCategory($user, $categoryId);
+            $this->assertWithinAvailableCredit($lockedCard, $amountCentavos, $overLimitConfirmed, $confirmedAvailableCreditCentavos);
+
+            $purchase = CreditCardPurchase::query()->create([
+                'user_id' => $user->id,
+                'credit_card_id' => $lockedCard->id,
+                'category_id' => $category->id,
+                'description' => $description,
+                'notes' => $notes,
+                'total_amount_centavos' => $amountCentavos,
+                'installment_count' => 1,
+                'purchase_date' => $purchaseDate,
+                'currency_code' => 'BRL',
+                'card_name_snapshot' => $lockedCard->name,
+                'category_name_snapshot' => $category->name,
+                'category_status_snapshot' => $category->status->value,
+                'recurring_card_occurrence_id' => $lockedOccurrence->id,
+            ]);
+
+            $cycle = $this->cycles->cycleForDate($purchaseDate, $lockedCard->closing_day, $lockedCard->due_day);
+            $statement = $this->statementFor($lockedCard, $cycle);
+            CreditCardInstallment::query()->create([
+                'user_id' => $user->id,
+                'credit_card_purchase_id' => $purchase->id,
+                'credit_card_id' => $lockedCard->id,
+                'credit_card_statement_id' => $statement->id,
+                'sequence' => 1,
+                'amount_centavos' => $amountCentavos,
+                'credit_adjustment_centavos' => 0,
+                'recognition_date' => $cycle->closingDate,
+            ]);
+
+            $this->reconciler->refreshCardStatements($lockedCard, $this->businessDate());
+
+            $lockedOccurrence->state = CardOccurrenceState::Recorded;
+            $lockedOccurrence->recorded_at = now();
+            $lockedOccurrence->last_attempt_at = now();
+            $lockedOccurrence->actual_amount_centavos = $amountCentavos;
+            $lockedOccurrence->actual_purchase_date = $purchaseDate;
+            $lockedOccurrence->failure_code = null;
+            $lockedOccurrence->action_claim_key = null;
+            $lockedOccurrence->action_claimed_at = null;
+            $lockedOccurrence->save();
+
+            return $purchase->refresh();
+        });
+    }
+
+    private function assertWithinAvailableCredit(
+        CreditCard $card,
+        int $amountCentavos,
+        bool $overLimitConfirmed,
+        ?int $confirmedAvailableCreditCentavos,
+    ): void {
         $available = $this->reconciler->availableCreditCentavos($card);
-        if ($data->totalAmountCentavos <= $available) {
+        if ($amountCentavos <= $available) {
             return;
         }
 
-        if (! $data->overLimitConfirmed) {
-            throw CreditCardStateException::overLimitConfirmationRequired($available - $data->totalAmountCentavos);
+        if (! $overLimitConfirmed) {
+            throw CreditCardStateException::overLimitConfirmationRequired($available - $amountCentavos);
         }
 
-        if ($data->confirmedAvailableCreditCentavos !== null && $data->confirmedAvailableCreditCentavos !== $available) {
+        if ($confirmedAvailableCreditCentavos !== null && $confirmedAvailableCreditCentavos !== $available) {
             throw CreditCardStateException::staleOverLimitConfirmation();
         }
     }

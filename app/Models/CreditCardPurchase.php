@@ -24,6 +24,7 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
     'card_name_snapshot',
     'category_name_snapshot',
     'category_status_snapshot',
+    'recurring_card_occurrence_id',
 ])]
 class CreditCardPurchase extends Model
 {
@@ -68,5 +69,11 @@ class CreditCardPurchase extends Model
     public function creditEvents(): HasMany
     {
         return $this->hasMany(CreditCardCreditEvent::class)->orderBy('id');
+    }
+
+    /** @return BelongsTo<RecurringCardOccurrence, $this> */
+    public function recurringCardOccurrence(): BelongsTo
+    {
+        return $this->belongsTo(RecurringCardOccurrence::class, 'recurring_card_occurrence_id');
     }
 }

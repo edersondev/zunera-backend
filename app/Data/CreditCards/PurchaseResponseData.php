@@ -38,7 +38,24 @@ final class PurchaseResponseData
             'credit_events' => $purchase->creditEvents
                 ->map(fn ($event) => CreditEventResponseData::from($event))
                 ->all(),
+            'recurrence_source' => self::recurrenceSource($purchase),
             'is_directly_editable' => $isDirectlyEditable,
+        ];
+    }
+
+    /** @return array{recurring_transaction_id: int, occurrence_id: int, scheduled_date: string}|null */
+    public static function recurrenceSource(CreditCardPurchase $purchase): ?array
+    {
+        $purchase->loadMissing('recurringCardOccurrence');
+        $occurrence = $purchase->recurringCardOccurrence;
+        if ($occurrence === null) {
+            return null;
+        }
+
+        return [
+            'recurring_transaction_id' => (int) $occurrence->recurring_transaction_id,
+            'occurrence_id' => (int) $occurrence->id,
+            'scheduled_date' => $occurrence->scheduled_date->toDateString(),
         ];
     }
 

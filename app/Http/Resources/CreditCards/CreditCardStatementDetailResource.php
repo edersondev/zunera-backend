@@ -42,6 +42,7 @@ final class CreditCardStatementDetailResource extends JsonResource
                         'color' => $installment->purchase->category->color,
                     ],
                     'purchase_total_amount' => CreditCardResponseData::money($installment->purchase->total_amount_centavos),
+                    'recurrence_source' => PurchaseResponseData::recurrenceSource($installment->purchase),
                     'is_directly_editable' => PurchaseResponseData::isDirectlyEditable($installment->purchase),
                 ])
                 ->all(),

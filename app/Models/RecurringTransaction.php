@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Models;
 
+use App\Enums\RecurringTransactions\CardGenerationMode;
+use App\Enums\RecurringTransactions\RecurrenceDestinationType;
 use App\Enums\RecurringTransactions\RecurrenceFrequency;
 use App\Enums\RecurringTransactions\RecurrencePausedReason;
 use App\Enums\RecurringTransactions\RecurrenceState;
@@ -18,7 +20,10 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 #[Fillable([
     'user_id',
+    'destination_type',
     'financial_account_id',
+    'credit_card_id',
+    'generation_mode',
     'category_id',
     'type',
     'amount_centavos',
@@ -51,6 +56,8 @@ class RecurringTransaction extends Model
             'frequency' => RecurrenceFrequency::class,
             'state' => RecurrenceState::class,
             'paused_reason' => RecurrencePausedReason::class,
+            'destination_type' => RecurrenceDestinationType::class,
+            'generation_mode' => CardGenerationMode::class,
             'amount_centavos' => 'integer',
             'start_date' => 'date',
             'end_date' => 'date',
@@ -72,6 +79,12 @@ class RecurringTransaction extends Model
         return $this->belongsTo(FinancialAccount::class);
     }
 
+    /** @return BelongsTo<CreditCard, $this> */
+    public function creditCard(): BelongsTo
+    {
+        return $this->belongsTo(CreditCard::class);
+    }
+
     /** @return BelongsTo<Category, $this> */
     public function category(): BelongsTo
     {
@@ -82,6 +95,34 @@ class RecurringTransaction extends Model
     public function generatedOccurrences(): HasMany
     {
         return $this->hasMany(Transaction::class, 'recurring_transaction_id');
+    }
+
+    /** @return HasMany<RecurringCardOccurrence, $this> */
+    public function cardOccurrences(): HasMany
+    {
+        return $this->hasMany(RecurringCardOccurrence::class, 'recurring_transaction_id');
+    }
+
+    public function destinationType(): RecurrenceDestinationType
+    {
+        return $this->destination_type ?? RecurrenceDestinationType::FinancialAccount;
+    }
+
+    public function isCardDestination(): bool
+    {
+        return $this->destinationType()->isCard();
+    }
+
+    public function isAccountDestination(): bool
+    {
+        return $this->destinationType()->isAccount();
+    }
+
+    public function generationModeOrAutomatic(): ?CardGenerationMode
+    {
+        return $this->isCardDestination()
+            ? ($this->generation_mode ?? CardGenerationMode::Automatic)
+            : null;
     }
 
     /** @param Builder<RecurringTransaction> $query */

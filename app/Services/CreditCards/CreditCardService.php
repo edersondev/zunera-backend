@@ -11,6 +11,7 @@ use App\Enums\CreditCards\CreditCardStatus;
 use App\Exceptions\CreditCards\CreditCardStateException;
 use App\Models\CreditCard;
 use App\Models\User;
+use App\Services\RecurringTransactions\RecurringTransactionService;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -138,6 +139,8 @@ final class CreditCardService
                 $locked->status = CreditCardStatus::Archived;
                 $locked->archived_at = now();
                 $locked->save();
+
+                app(RecurringTransactionService::class)->pauseForArchivedCard((int) $locked->id);
 
                 return [
                     'target_type' => 'credit_card',

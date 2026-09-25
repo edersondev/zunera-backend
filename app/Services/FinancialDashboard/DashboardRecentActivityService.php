@@ -4,12 +4,13 @@ declare(strict_types=1);
 
 namespace App\Services\FinancialDashboard;
 
+use App\Models\CreditCardPurchase;
 use App\Models\Transaction;
 use App\Models\Transfer;
 use App\Models\User;
 
 /**
- * Newest eligible activity across income, expense, and transfer records,
+ * Newest eligible activity across income, expense, card purchase, and transfer records,
  * including pending movements. The ten-item limit is a product rule and is
  * never caller-controlled; full history stays available through Financial
  * History.
@@ -19,7 +20,7 @@ final class DashboardRecentActivityService
     public const int LIMIT = 10;
 
     /**
-     * @return list<array{kind: string, model: Transaction|Transfer}>
+     * @return list<array{kind: string, model: Transaction|Transfer|CreditCardPurchase}>
      */
     public function recent(User $user): array
     {
@@ -41,12 +42,23 @@ final class DashboardRecentActivityService
             ->limit(self::LIMIT)
             ->get();
 
+        $cardPurchases = CreditCardPurchase::query()
+            ->with(['creditCard', 'category', 'recurringCardOccurrence'])
+            ->where('user_id', $user->id)
+            ->orderByDesc('purchase_date')
+            ->orderByDesc('id')
+            ->limit(self::LIMIT)
+            ->get();
+
         $entries = [];
         foreach ($transactions as $transaction) {
             $entries[] = ['kind' => 'transaction', 'model' => $transaction];
         }
         foreach ($transfers as $transfer) {
             $entries[] = ['kind' => 'transfer', 'model' => $transfer];
+        }
+        foreach ($cardPurchases as $purchase) {
+            $entries[] = ['kind' => 'card_purchase', 'model' => $purchase];
         }
 
         usort($entries, function (array $left, array $right): int {
@@ -60,7 +72,7 @@ final class DashboardRecentActivityService
     }
 
     /**
-     * @param  array{kind: string, model: Transaction|Transfer}  $entry
+     * @param  array{kind: string, model: Transaction|Transfer|CreditCardPurchase}  $entry
      * @return array{0: string, 1: int}
      */
     private function position(array $entry): array
@@ -69,6 +81,10 @@ final class DashboardRecentActivityService
 
         if ($model instanceof Transfer) {
             return [$model->transfer_date->toDateString(), (int) $model->id];
+        }
+
+        if ($model instanceof CreditCardPurchase) {
+            return [$model->purchase_date->toDateString(), (int) $model->id];
         }
 
         return [$model->transaction_date->toDateString(), (int) $model->id];

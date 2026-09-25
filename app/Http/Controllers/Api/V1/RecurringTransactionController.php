@@ -6,14 +6,18 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Exceptions\RecurringTransactions\RecurrenceStateException;
 use App\Http\Controllers\Controller;
+use App\Http\Requests\RecurringTransactions\ConfirmCardOccurrenceRequest;
 use App\Http\Requests\RecurringTransactions\LifecycleRecurringTransactionRequest;
 use App\Http\Requests\RecurringTransactions\ListRecurringTransactionsRequest;
+use App\Http\Requests\RecurringTransactions\OccurrenceActionRequest;
 use App\Http\Requests\RecurringTransactions\StoreRecurringTransactionRequest;
 use App\Http\Requests\RecurringTransactions\UpdateRecurringTransactionRequest;
+use App\Http\Resources\RecurringTransactions\CardOccurrenceResource;
 use App\Http\Resources\RecurringTransactions\GeneratedOccurrenceResource;
 use App\Http\Resources\RecurringTransactions\RecurringTransactionResource;
 use App\Models\RecurringTransaction;
 use App\Models\User;
+use App\Services\RecurringTransactions\RecurringCardOccurrenceActionService;
 use App\Services\RecurringTransactions\RecurringTransactionService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -113,10 +117,75 @@ final class RecurringTransactionController extends Controller
         $user = $request->user();
         $page = max(1, (int) $request->integer('page', 1));
         $perPage = min(50, max(1, (int) $request->integer('per_page', 50)));
+        $rule = $service->findOwned($user, $recurring_transaction_id);
 
-        return GeneratedOccurrenceResource::collection(
-            $service->listOccurrences($user, $service->findOwned($user, $recurring_transaction_id), $page, $perPage),
-        );
+        $occurrences = $service->listOccurrences($user, $rule, $page, $perPage);
+
+        if ($rule->isCardDestination()) {
+            return CardOccurrenceResource::collection($occurrences);
+        }
+
+        return GeneratedOccurrenceResource::collection($occurrences);
+    }
+
+    public function confirm(ConfirmCardOccurrenceRequest $request, RecurringTransactionService $service, RecurringCardOccurrenceActionService $actions, int $recurring_transaction_id, int $occurrence_id): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $rule = $service->findOwned($user, $recurring_transaction_id);
+        $occurrence = $service->findOwnedOccurrence($user, $occurrence_id);
+
+        if ((int) $occurrence->recurring_transaction_id !== (int) $rule->id) {
+            return $this->stateFailure(RecurrenceStateException::occurrenceNotActionable());
+        }
+
+        try {
+            $result = $actions->confirm($user, $rule, $occurrence, $request->toData());
+        } catch (RecurrenceStateException $exception) {
+            return $this->stateFailure($exception);
+        }
+
+        return (new CardOccurrenceResource($result['occurrence']))->response()->setStatusCode($result['status']);
+    }
+
+    public function dismiss(OccurrenceActionRequest $request, RecurringTransactionService $service, RecurringCardOccurrenceActionService $actions, int $recurring_transaction_id, int $occurrence_id): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $rule = $service->findOwned($user, $recurring_transaction_id);
+        $occurrence = $service->findOwnedOccurrence($user, $occurrence_id);
+
+        if ((int) $occurrence->recurring_transaction_id !== (int) $rule->id) {
+            return $this->stateFailure(RecurrenceStateException::occurrenceNotActionable());
+        }
+
+        try {
+            $result = $actions->dismiss($user, $rule, $occurrence);
+        } catch (RecurrenceStateException $exception) {
+            return $this->stateFailure($exception);
+        }
+
+        return (new CardOccurrenceResource($result['occurrence']))->response()->setStatusCode($result['status']);
+    }
+
+    public function retry(OccurrenceActionRequest $request, RecurringTransactionService $service, RecurringCardOccurrenceActionService $actions, int $recurring_transaction_id, int $occurrence_id): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->user();
+        $rule = $service->findOwned($user, $recurring_transaction_id);
+        $occurrence = $service->findOwnedOccurrence($user, $occurrence_id);
+
+        if ((int) $occurrence->recurring_transaction_id !== (int) $rule->id) {
+            return $this->stateFailure(RecurrenceStateException::occurrenceNotActionable());
+        }
+
+        try {
+            $result = $actions->retry($user, $rule, $occurrence);
+        } catch (RecurrenceStateException $exception) {
+            return $this->stateFailure($exception);
+        }
+
+        return (new CardOccurrenceResource($result['occurrence']))->response()->setStatusCode($result['status']);
     }
 
     /** @param array{rule: RecurringTransaction, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool} $result */

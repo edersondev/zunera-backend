@@ -4,11 +4,14 @@ declare(strict_types=1);
 
 namespace Database\Factories;
 
+use App\Enums\RecurringTransactions\CardGenerationMode;
+use App\Enums\RecurringTransactions\RecurrenceDestinationType;
 use App\Enums\RecurringTransactions\RecurrenceFrequency;
 use App\Enums\RecurringTransactions\RecurrencePausedReason;
 use App\Enums\RecurringTransactions\RecurrenceState;
 use App\Enums\Transactions\TransactionType;
 use App\Models\Category;
+use App\Models\CreditCard;
 use App\Models\FinancialAccount;
 use App\Models\RecurringTransaction;
 use App\Models\User;
@@ -23,7 +26,10 @@ class RecurringTransactionFactory extends Factory
 
         return [
             'user_id' => User::factory(),
+            'destination_type' => RecurrenceDestinationType::FinancialAccount,
             'financial_account_id' => FinancialAccount::factory(),
+            'credit_card_id' => null,
+            'generation_mode' => null,
             'category_id' => Category::factory(),
             'type' => TransactionType::Expense,
             'amount_centavos' => fake()->numberBetween(1_000, 500_000),
@@ -77,5 +83,17 @@ class RecurringTransactionFactory extends Factory
         return $this
             ->for(FinancialAccount::factory()->archived(), 'financialAccount')
             ->for(Category::factory()->archived(), 'category');
+    }
+
+    /** Card destination with an active owned card and automatic mode. */
+    public function card(CreditCard $card, ?CardGenerationMode $mode = null): static
+    {
+        return $this->state([
+            'destination_type' => RecurrenceDestinationType::CreditCard,
+            'financial_account_id' => null,
+            'credit_card_id' => $card->id,
+            'generation_mode' => $mode ?? CardGenerationMode::Automatic,
+            'user_id' => $card->user_id,
+        ]);
     }
 }
