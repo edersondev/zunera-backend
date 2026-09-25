@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace App\Http\Requests\RecurringTransactions;
 
 use App\Data\RecurringTransactions\UpdateRecurringTransactionData;
+use App\Enums\RecurringTransactions\CardGenerationMode;
+use App\Enums\RecurringTransactions\RecurrenceDestinationType;
 use App\Enums\RecurringTransactions\RecurrenceFrequency;
 use App\Enums\Transactions\TransactionType;
 use App\Models\RecurringTransaction;
@@ -30,7 +32,10 @@ final class UpdateRecurringTransactionRequest extends FormRequest
     public function rules(): array
     {
         return [
+            'destination_type' => ['sometimes', Rule::enum(RecurrenceDestinationType::class)],
             'financial_account_id' => ['sometimes', 'integer', 'min:1'],
+            'credit_card_id' => ['sometimes', 'integer', 'min:1'],
+            'generation_mode' => ['sometimes', Rule::enum(CardGenerationMode::class)],
             'category_id' => ['sometimes', 'integer', 'min:1'],
             'type' => ['sometimes', Rule::enum(TransactionType::class)],
             'amount_centavos' => ['sometimes', 'integer', 'min:'.RecurringTransaction::MIN_AMOUNT_CENTAVOS, 'max:'.RecurringTransaction::MAX_AMOUNT_CENTAVOS],
@@ -54,8 +59,14 @@ final class UpdateRecurringTransactionRequest extends FormRequest
         if (isset($changes['type'])) {
             $changes['type'] = TransactionType::from($changes['type']);
         }
+        if (isset($changes['destination_type'])) {
+            $changes['destination_type'] = RecurrenceDestinationType::from($changes['destination_type']);
+        }
         if (isset($changes['frequency'])) {
             $changes['frequency'] = RecurrenceFrequency::from($changes['frequency']);
+        }
+        if (isset($changes['generation_mode'])) {
+            $changes['generation_mode'] = CardGenerationMode::from($changes['generation_mode']);
         }
         if (array_key_exists('description', $changes)) {
             $description = RecurringTextNormalizer::normalize((string) $changes['description']);

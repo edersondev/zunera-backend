@@ -47,6 +47,36 @@ final class RecurrenceStateException extends RuntimeException
         return new self('idempotency_key_reused', 'Idempotency-Key was already used for a different request.');
     }
 
+    public static function dueProcessingIncomplete(): self
+    {
+        return new self('recurrence_due_processing_incomplete', 'Some already due dates could not be processed. Review the occurrences and try again.');
+    }
+
+    public static function occurrenceAlreadyRecorded(): self
+    {
+        return new self('occurrence_already_recorded', 'This occurrence already recorded its purchase.');
+    }
+
+    public static function occurrenceDismissed(): self
+    {
+        return new self('occurrence_dismissed', 'A dismissed occurrence cannot be changed.');
+    }
+
+    public static function occurrenceNotActionable(): self
+    {
+        return new self('occurrence_not_actionable', 'This occurrence cannot perform the requested action in its current state.');
+    }
+
+    public static function occurrenceActionInProgress(): self
+    {
+        return new self('occurrence_action_in_progress', 'Another confirmation attempt is already in progress for this occurrence.');
+    }
+
+    public static function staleOverLimitConfirmation(): self
+    {
+        return new self('stale_over_limit_confirmation', 'The confirmed available credit no longer matches the card. Review the occurrence again.');
+    }
+
     public function errorCode(): string
     {
         return $this->stateCode;

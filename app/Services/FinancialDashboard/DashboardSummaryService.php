@@ -17,6 +17,8 @@ use Illuminate\Support\Facades\DB;
  */
 final class DashboardSummaryService
 {
+    public function __construct(private readonly RecurringCardExpenseProjection $cardExpenses) {}
+
     /** @return array<string, mixed> */
     public function summary(User $user, DashboardPeriodData $period): array
     {
@@ -31,7 +33,8 @@ final class DashboardSummaryService
             ->first();
 
         $income = (int) ($row->income_centavos ?? 0);
-        $expenses = (int) ($row->expense_centavos ?? 0);
+        $expenses = (int) ($row->expense_centavos ?? 0)
+            + $this->cardExpenses->total($user, $period->from, $period->to);
 
         return [
             'period' => $period,

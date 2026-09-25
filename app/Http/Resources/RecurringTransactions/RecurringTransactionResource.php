@@ -20,6 +20,7 @@ final class RecurringTransactionResource extends JsonResource
         return [
             'id' => $rule->id,
             'type' => $rule->type->value,
+            'destination_type' => $rule->destinationType()->value,
             'amount_centavos' => $rule->amount_centavos,
             'currency_code' => $rule->currency_code,
             'description' => $rule->description,
@@ -29,11 +30,19 @@ final class RecurringTransactionResource extends JsonResource
             'end_date' => $rule->endDateOrNull(),
             'state' => $rule->state->value,
             'paused_reason' => $rule->paused_reason?->value,
-            'financial_account' => [
+            'financial_account' => $rule->financialAccount?->id !== null ? [
                 'id' => $rule->financialAccount?->id,
                 'name' => $rule->financialAccount?->name,
                 'status' => $rule->financialAccount?->status->value,
-            ],
+            ] : null,
+            'credit_card' => $rule->creditCard?->id !== null ? [
+                'id' => $rule->creditCard?->id,
+                'name' => $rule->creditCard?->name,
+                'institution_name' => $rule->creditCard?->institution_name,
+                'last_four' => $rule->creditCard?->last_four,
+                'status' => $rule->creditCard?->status->value,
+            ] : null,
+            'generation_mode' => $rule->generationModeOrAutomatic()?->value,
             'category' => [
                 'id' => $rule->category?->id,
                 'name' => $rule->category?->name,

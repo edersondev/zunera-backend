@@ -16,6 +16,8 @@ use Illuminate\Support\Facades\DB;
  */
 final class DashboardEvolutionService
 {
+    public function __construct(private readonly RecurringCardExpenseProjection $cardExpenses) {}
+
     /** @return array<string, mixed> */
     public function evolution(User $user, DashboardPeriodData $period): array
     {
@@ -76,6 +78,12 @@ final class DashboardEvolutionService
                 'income_centavos' => (int) $row->income_centavos,
                 'expenses_centavos' => (int) $row->expense_centavos,
             ];
+        }
+
+        foreach ($this->cardExpenses->byDate($user, $period->from, $period->to) as $row) {
+            $date = substr((string) $row->movement_date, 0, 10);
+            $totals[$date] ??= ['income_centavos' => 0, 'expenses_centavos' => 0];
+            $totals[$date]['expenses_centavos'] += (int) $row->expenses_centavos;
         }
 
         return $totals;

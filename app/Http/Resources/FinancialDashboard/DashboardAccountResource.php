@@ -22,9 +22,13 @@ final class DashboardAccountResource extends JsonResource
         return self::shape($this->resource);
     }
 
-    /** @return array{id: int, name: string, type: string, status: string} */
-    public static function shape(FinancialAccount $account): array
+    /** @return array{id: int, name: string, type: string, status: string}|null */
+    public static function shape(?FinancialAccount $account): ?array
     {
+        if (! $account instanceof FinancialAccount) {
+            return null;
+        }
+
         return [
             'id' => (int) $account->id,
             'name' => (string) $account->name,

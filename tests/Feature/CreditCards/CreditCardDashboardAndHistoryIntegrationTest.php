@@ -40,7 +40,7 @@ final class CreditCardDashboardAndHistoryIntegrationTest extends TestCase
         $this->getJson('/api/v1/financial-dashboard/summary')
             ->assertOk()
             ->assertJsonPath('data.current_total_balance.amount_centavos', 250_000)
-            ->assertJsonPath('data.realized_expenses.amount_centavos', 0);
+            ->assertJsonPath('data.realized_expenses.amount_centavos', 30_000);
 
         $this->assertSame(60_000, $response->json('data.cards.0.summary.used_credit.amount_centavos'));
     }

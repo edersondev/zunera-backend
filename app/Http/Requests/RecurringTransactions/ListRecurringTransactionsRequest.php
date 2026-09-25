@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace App\Http\Requests\RecurringTransactions;
 
 use App\Data\RecurringTransactions\RecurringTransactionFilterData;
+use App\Enums\RecurringTransactions\RecurrenceDestinationType;
 use App\Enums\RecurringTransactions\RecurrenceFrequency;
 use App\Enums\RecurringTransactions\RecurrenceState;
 use App\Enums\Transactions\TransactionType;
@@ -23,7 +24,9 @@ final class ListRecurringTransactionsRequest extends FormRequest
     {
         return [
             'type' => ['nullable', Rule::enum(TransactionType::class)],
+            'destination_type' => ['nullable', Rule::enum(RecurrenceDestinationType::class)],
             'financial_account_id' => ['nullable', 'integer', 'min:1'],
+            'credit_card_id' => ['nullable', 'integer', 'min:1'],
             'category_id' => ['nullable', 'integer', 'min:1'],
             'frequency' => ['nullable', Rule::enum(RecurrenceFrequency::class)],
             'state' => ['nullable', Rule::enum(RecurrenceState::class)],
@@ -38,7 +41,9 @@ final class ListRecurringTransactionsRequest extends FormRequest
 
         return new RecurringTransactionFilterData(
             type: isset($data['type']) ? TransactionType::from($data['type']) : null,
+            destinationType: isset($data['destination_type']) ? RecurrenceDestinationType::from($data['destination_type']) : null,
             financialAccountId: isset($data['financial_account_id']) ? (int) $data['financial_account_id'] : null,
+            creditCardId: isset($data['credit_card_id']) ? (int) $data['credit_card_id'] : null,
             categoryId: isset($data['category_id']) ? (int) $data['category_id'] : null,
             frequency: isset($data['frequency']) ? RecurrenceFrequency::from($data['frequency']) : null,
             state: isset($data['state']) ? RecurrenceState::from($data['state']) : null,
