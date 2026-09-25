@@ -79,13 +79,20 @@ final class RecurringOccurrenceService
     public function processRule(int $ruleId, ?string $businessDate = null): int
     {
         $today = RecurringDateRange::processingDate($businessDate);
-        $rule = RecurringTransaction::query()->lockForUpdate()->find($ruleId);
+        $rule = RecurringTransaction::query()->find($ruleId);
         if (! $rule instanceof RecurringTransaction || ! $rule->isActive()) {
             return 0;
         }
 
         if ($rule->isAccountDestination()) {
-            return DB::transaction(fn (): int => $this->processAccountRule($rule, $today));
+            return DB::transaction(function () use ($ruleId, $today): int {
+                $locked = RecurringTransaction::query()->lockForUpdate()->find($ruleId);
+                if (! $locked instanceof RecurringTransaction || ! $locked->isActive()) {
+                    return 0;
+                }
+
+                return $this->processAccountRule($locked, $today);
+            });
         }
 
         return $this->processCardRule($rule, $today);
@@ -251,6 +258,9 @@ final class RecurringOccurrenceService
                 return true;
             }
             $this->markState($occurrence->id, CardOccurrenceState::Failed, 'card_unavailable');
+        } catch (RecurrenceStateException) {
+            // Another action completed while this automatic attempt was waiting.
+            return true;
         } catch (Throwable) {
             $this->markState($occurrence->id, CardOccurrenceState::Failed, 'purchase_recording_failed');
         }
@@ -310,12 +320,20 @@ final class RecurringOccurrenceService
 
     private function markState(int $occurrenceId, CardOccurrenceState $state, ?string $failureCode): void
     {
-        RecurringCardOccurrence::query()->whereKey($occurrenceId)->update([
-            'state' => $state->value,
-            'failure_code' => $failureCode,
-            'last_attempt_at' => now(),
-            'updated_at' => now(),
-        ]);
+        RecurringCardOccurrence::query()
+            ->whereKey($occurrenceId)
+            ->whereIn('state', [
+                CardOccurrenceState::Expected->value,
+                CardOccurrenceState::AwaitingOverLimit->value,
+                CardOccurrenceState::Failed->value,
+            ])
+            ->whereNull('action_claim_key')
+            ->update([
+                'state' => $state->value,
+                'failure_code' => $failureCode,
+                'last_attempt_at' => now(),
+                'updated_at' => now(),
+            ]);
     }
 
     private function generateAccountOccurrence(RecurringTransaction $rule, string $scheduledDate): bool

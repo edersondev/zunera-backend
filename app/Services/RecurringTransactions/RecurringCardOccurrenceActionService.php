@@ -112,6 +112,8 @@ final class RecurringCardOccurrenceActionService
             $this->markState($locked, CardOccurrenceState::Failed, 'card_unavailable');
 
             return $this->result($locked->refresh());
+        } catch (RecurrenceStateException $exception) {
+            throw $exception;
         } catch (Throwable) {
             $this->markState($locked, CardOccurrenceState::Failed, 'purchase_recording_failed');
 
@@ -286,12 +288,20 @@ final class RecurringCardOccurrenceActionService
 
     private function markState(RecurringCardOccurrence $occurrence, CardOccurrenceState $state, ?string $failureCode): void
     {
-        RecurringCardOccurrence::query()->whereKey($occurrence->id)->update([
-            'state' => $state->value,
-            'failure_code' => $failureCode,
-            'last_attempt_at' => now(),
-            'updated_at' => now(),
-        ]);
+        RecurringCardOccurrence::query()
+            ->whereKey($occurrence->id)
+            ->whereIn('state', [
+                CardOccurrenceState::Expected->value,
+                CardOccurrenceState::AwaitingOverLimit->value,
+                CardOccurrenceState::Failed->value,
+            ])
+            ->whereNull('action_claim_key')
+            ->update([
+                'state' => $state->value,
+                'failure_code' => $failureCode,
+                'last_attempt_at' => now(),
+                'updated_at' => now(),
+            ]);
     }
 
     private function markFailed(RecurringCardOccurrence $claim, string $failureCode): void

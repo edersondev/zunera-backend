@@ -5,16 +5,78 @@ declare(strict_types=1);
 namespace Tests\Feature\RecurringTransactions;
 
 use App\Enums\RecurringTransactions\CardOccurrenceState;
+use App\Exceptions\RecurringTransactions\RecurrenceStateException;
+use App\Models\CreditCard;
 use App\Models\RecurringCardOccurrence;
 use App\Models\RecurringTransaction;
+use App\Services\RecurringTransactions\RecurringCardOccurrenceActionService;
 use App\Services\RecurringTransactions\RecurringOccurrenceService;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\OverlappingCardAttempts;
 
 final class RecurringCardAutomaticOccurrenceActionsTest extends RecurringTransactionFeatureTestCase
 {
     use RefreshDatabase;
+
+    #[Test]
+    public function retry_propagates_a_concurrent_state_conflict_without_marking_the_occurrence_failed(): void
+    {
+        [$rule, $occurrence] = $this->awaitingOccurrence();
+        $event = 'eloquent.retrieved: '.CreditCard::class;
+        Event::listen($event, static function (): void {
+            throw RecurrenceStateException::occurrenceAlreadyRecorded();
+        });
+
+        $conflict = null;
+        try {
+            app(RecurringCardOccurrenceActionService::class)->retry($rule->user, $rule, $occurrence);
+        } catch (RecurrenceStateException $exception) {
+            $conflict = $exception;
+        } finally {
+            Event::forget($event);
+        }
+
+        self::assertSame('occurrence_already_recorded', $conflict?->errorCode());
+        self::assertSame(CardOccurrenceState::AwaitingOverLimit, $occurrence->fresh()->state);
+        self::assertNull($occurrence->purchase);
+    }
+
+    #[Test]
+    public function automatic_generation_leaves_an_occurrence_actionable_after_a_state_conflict(): void
+    {
+        $user = $this->signInUser();
+        $card = $this->ownedCard($user);
+        $category = $this->ownedCategory($user);
+        $rule = $this->cardRule($user, $card, [
+            'category_id' => $category->id,
+            'start_date' => '2026-09-24',
+            'eligibility_starts_on' => '2026-09-24',
+            'schedule_cursor' => '2026-09-24',
+        ]);
+
+        $cardReads = 0;
+        $event = 'eloquent.retrieved: '.CreditCard::class;
+        Event::listen($event, static function () use (&$cardReads): void {
+            $cardReads++;
+            if ($cardReads === 2) {
+                throw RecurrenceStateException::occurrenceAlreadyRecorded();
+            }
+        });
+
+        try {
+            $created = app(RecurringOccurrenceService::class)->processRule($rule->id, '2026-09-24');
+        } finally {
+            Event::forget($event);
+        }
+
+        self::assertSame(1, $created);
+        self::assertSame(2, $cardReads);
+        $occurrence = RecurringCardOccurrence::query()->sole();
+        self::assertSame(CardOccurrenceState::Expected, $occurrence->state);
+        self::assertNull($occurrence->purchase);
+    }
 
     #[Test]
     public function one_hundred_overlapping_automatic_decisions_cannot_duplicate_a_purchase(): void
