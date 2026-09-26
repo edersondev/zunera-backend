@@ -13,6 +13,8 @@ use App\Http\Controllers\Api\V1\CreditCardStatementPaymentController;
 use App\Http\Controllers\Api\V1\FinancialAccountController;
 use App\Http\Controllers\Api\V1\FinancialAccountSummaryController;
 use App\Http\Controllers\Api\V1\FinancialDashboardController;
+use App\Http\Controllers\Api\V1\FinancialGoalController;
+use App\Http\Controllers\Api\V1\FinancialGoalDashboardController;
 use App\Http\Controllers\Api\V1\FinancialHistoryController;
 use App\Http\Controllers\Api\V1\RecurringTransactionController;
 use App\Http\Controllers\Api\V1\TransactionController;
@@ -38,6 +40,20 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('/financial-accounts/{account_id}', [FinancialAccountController::class, 'update'])->whereNumber('account_id');
         Route::post('/financial-accounts/{account_id}/archive', [FinancialAccountController::class, 'archive'])->whereNumber('account_id');
         Route::post('/financial-accounts/{account_id}/restore', [FinancialAccountController::class, 'restore'])->whereNumber('account_id');
+
+        Route::get('/financial-goals', [FinancialGoalController::class, 'index']);
+        Route::get('/financial-goals/summary', [FinancialGoalDashboardController::class, 'summary']);
+        Route::get('/financial-dashboard/goals', [FinancialGoalDashboardController::class, 'dashboard']);
+        Route::post('/financial-goals', [FinancialGoalController::class, 'store']);
+        Route::get('/financial-goals/{goal_id}', [FinancialGoalController::class, 'show'])->whereNumber('goal_id');
+        Route::patch('/financial-goals/{goal_id}', [FinancialGoalController::class, 'update'])->whereNumber('goal_id');
+        Route::get('/financial-goals/{goal_id}/activities', [FinancialGoalController::class, 'activities'])->whereNumber('goal_id');
+        Route::post('/financial-goals/{goal_id}/allocations', [FinancialGoalController::class, 'allocate'])->whereNumber('goal_id');
+        Route::post('/financial-goals/{goal_id}/withdrawals', [FinancialGoalController::class, 'withdraw'])->whereNumber('goal_id');
+        Route::post('/financial-goals/{goal_id}/complete', [FinancialGoalController::class, 'complete'])->whereNumber('goal_id');
+        Route::post('/financial-goals/{goal_id}/reopen', [FinancialGoalController::class, 'reopen'])->whereNumber('goal_id');
+        Route::post('/financial-goals/{goal_id}/archive', [FinancialGoalController::class, 'archive'])->whereNumber('goal_id');
+        Route::post('/financial-goals/{goal_id}/restore', [FinancialGoalController::class, 'restore'])->whereNumber('goal_id');
 
         Route::get('/categories', [CategoryController::class, 'index']);
         Route::post('/categories', [CategoryController::class, 'store']);
