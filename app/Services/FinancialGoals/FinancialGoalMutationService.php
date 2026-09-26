@@ -10,6 +10,7 @@ use App\Exceptions\FinancialGoals\FinancialGoalStateException;
 use App\Models\FinancialAccount;
 use App\Models\FinancialGoal;
 use App\Models\FinancialGoalActivity;
+use Illuminate\Validation\ValidationException;
 
 final class FinancialGoalMutationService
 {
@@ -23,6 +24,7 @@ final class FinancialGoalMutationService
     public function create(int $userId, GoalInput $input, string $key): array
     {
         return $this->idempotency->execute($userId, $key, 'create', $input->fingerprintPayload(), function () use ($userId, $input): array {
+            $this->assertTargetDateIsCurrent($input->targetDate);
             $account = $input->financialAccountId === null ? null : $this->capacity->findOwnedActive($userId, $input->financialAccountId, true);
             if ($account !== null && $input->initialAllocatedCentavos > 0) {
                 $this->capacity->assertAdditionFits($account, $input->initialAllocatedCentavos);
@@ -60,13 +62,16 @@ final class FinancialGoalMutationService
             if ($from !== $requiredStatus) {
                 throw FinancialGoalStateException::conflict('goal_invalid_transition', 'This goal cannot make that status change.');
             }
-            $allocated = $this->capacity->allocationForGoal($goalId);
             if ($action === 'complete') {
+                if ($goal->financial_account_id !== null) {
+                    $account = FinancialAccount::query()->where('user_id', $userId)->whereKey($goal->financial_account_id)->lockForUpdate()->first();
+                    $goal->setRelation('financialAccount', $account);
+                }
+                $allocated = $this->capacity->allocationForGoal($goalId);
                 if ($allocated < (int) $goal->target_centavos) {
                     throw FinancialGoalStateException::conflict('goal_target_not_reached', 'Allocate the target amount before completing this goal.');
                 }
                 if ($goal->financial_account_id !== null) {
-                    FinancialAccount::query()->where('user_id', $userId)->whereKey($goal->financial_account_id)->lockForUpdate()->first();
                     $coverage = $this->capacity->coverage($goal);
                     if ($coverage['account_backing'] === 'inactive_or_unavailable') {
                         throw FinancialGoalStateException::conflict('goal_account_unavailable', 'Choose an active account before completing this goal.');
@@ -81,6 +86,7 @@ final class FinancialGoalMutationService
                 $goal->status = 'active';
                 $goal->completed_at = null;
             } elseif ($action === 'archive') {
+                $allocated = $this->capacity->allocationForGoal($goalId);
                 if ($allocated !== 0) {
                     throw FinancialGoalStateException::conflict('goal_archive_requires_zero_allocation', 'Withdraw the full allocation before archiving this goal.');
                 }
@@ -102,6 +108,9 @@ final class FinancialGoalMutationService
     public function update(int $userId, int $goalId, GoalUpdateInput $input, string $key): array
     {
         return $this->idempotency->execute($userId, $key, 'update', ['goal_id' => $goalId, 'changes' => $input->changes], function () use ($userId, $goalId, $input): array {
+            if ($input->has('target_date')) {
+                $this->assertTargetDateIsCurrent($input->get('target_date'));
+            }
             $goal = FinancialGoal::query()->where('user_id', $userId)->whereKey($goalId)->lockForUpdate()->firstOrFail();
             if ($goal->status !== 'active') {
                 throw FinancialGoalStateException::conflict($goal->status === 'completed' ? 'goal_completed_requires_reopen' : 'goal_archived_requires_restore', 'Reopen or restore this goal before editing it.');
@@ -180,5 +189,12 @@ final class FinancialGoalMutationService
             'occurred_at' => $at,
             'business_date' => $at->copy()->timezone('America/Sao_Paulo')->toDateString(),
         ]);
+    }
+
+    private function assertTargetDateIsCurrent(?string $targetDate): void
+    {
+        if ($targetDate !== null && $targetDate < now('America/Sao_Paulo')->toDateString()) {
+            throw ValidationException::withMessages(['target_date' => 'The target date must be today or later.']);
+        }
     }
 }

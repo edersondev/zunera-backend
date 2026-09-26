@@ -39,7 +39,7 @@ final class CreateFinancialGoalRequest extends FormRequest
             'name' => ['required', 'string', 'max:200'],
             'target_centavos' => ['required', $centavos],
             'initial_allocated_centavos' => ['sometimes', $initial],
-            'target_date' => ['nullable', 'date_format:Y-m-d', 'after_or_equal:'.now('America/Sao_Paulo')->toDateString()],
+            'target_date' => ['nullable', 'date_format:Y-m-d'],
             'financial_account_id' => ['nullable', 'integer', 'min:1'],
             'description' => ['nullable', 'string', 'max:1000'],
             'idempotency_key' => ['required', 'string', 'min:1', 'max:255'],

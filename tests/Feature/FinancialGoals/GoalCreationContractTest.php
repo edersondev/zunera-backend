@@ -66,6 +66,23 @@ class GoalCreationContractTest extends TestCase
         $this->assertSame(1, FinancialGoal::count());
     }
 
+    public function test_create_replay_keeps_its_original_response_after_target_date_passes(): void
+    {
+        config(['session.lifetime' => 3 * 24 * 60, 'authentication.session.idle_minutes' => 3 * 24 * 60, 'authentication.session.absolute_minutes' => 3 * 24 * 60]);
+        $owner = User::factory()->create();
+        $this->signIn($owner);
+        $this->travelTo(now('America/Sao_Paulo')->startOfDay());
+        $payload = ['name' => 'Trip', 'target_centavos' => 100, 'target_date' => now('America/Sao_Paulo')->toDateString()];
+        $created = $this->postJson('/api/v1/financial-goals', $payload, ['Idempotency-Key' => 'dated-create'])->assertCreated();
+
+        $this->travel(2)->days();
+        $this->postJson('/api/v1/financial-goals', $payload, ['Idempotency-Key' => 'dated-create'])
+            ->assertCreated()->assertExactJson($created->json());
+        $this->postJson('/api/v1/financial-goals', $payload, ['Idempotency-Key' => 'new-dated-create'])
+            ->assertUnprocessable()->assertJsonValidationErrors('target_date');
+        $this->assertDatabaseCount('financial_goals', 1);
+    }
+
     public function test_mutations_reject_fields_outside_the_published_contract(): void
     {
         $owner = User::factory()->create();

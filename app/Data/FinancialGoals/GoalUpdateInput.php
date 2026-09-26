@@ -19,6 +19,9 @@ final readonly class GoalUpdateInput
         if (array_key_exists('target_centavos', $validated)) {
             $validated['target_centavos'] = GoalInput::centavos($validated['target_centavos']);
         }
+        if (isset($validated['financial_account_id'])) {
+            $validated['financial_account_id'] = (int) $validated['financial_account_id'];
+        }
         ksort($validated);
 
         return new self($validated);
