@@ -11,6 +11,7 @@ use App\Repositories\FinancialReports\RecognizedContributionRepository;
 use Carbon\CarbonImmutable;
 use Illuminate\Database\Query\Builder;
 use Illuminate\Support\Facades\DB;
+use Symfony\Component\HttpKernel\Exception\HttpException;
 use Throwable;
 
 /** Aggregates authoritative signed rows without storing report-only balances. */
@@ -33,6 +34,11 @@ final class FinancialReportService
         $accounts = $this->section($states, 'accounts', fn (): array => $this->accounts($scope));
         $comparison = $this->section($states, 'comparison', fn (): array => $this->comparison($scope, $current));
 
+        if ($current === null && $evolution === null && $expense === null
+            && $income === null && $accounts === null && $comparison === null) {
+            throw new HttpException(503, 'Financial report is temporarily unavailable. Retry the report.');
+        }
+
         $unattributed = null;
         if ($accounts !== null) {
             try {
@@ -43,7 +49,14 @@ final class FinancialReportService
             }
         }
 
-        $empty = $current === null ? null : $this->emptyStates($scope, $current);
+        $empty = null;
+        if ($current !== null) {
+            try {
+                $empty = $this->emptyStates($scope, $current);
+            } catch (Throwable $error) {
+                report($error);
+            }
+        }
 
         return [
             'scope' => $scope->toArray(),

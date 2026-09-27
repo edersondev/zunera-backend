@@ -7,6 +7,7 @@ namespace Tests\Feature\FinancialReports;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;
+use RuntimeException;
 use Tests\Support\FinancialReports\FinancialReportFixtures;
 use Tests\TestCase;
 
@@ -105,5 +106,16 @@ final class FinancialReportOverviewContractTest extends TestCase
         self::assertNull($data['accounts']);
         self::assertNull($data['unattributed_card_expenses']);
         self::assertIsArray($data['evolution']);
+    }
+
+    #[Test]
+    public function wholly_unavailable_report_returns_service_unavailable(): void
+    {
+        $this->reportSignIn();
+        DB::partialMock()->shouldReceive('query')->andThrow(new RuntimeException('Report reads failed.'));
+
+        $this->getJson('/api/v1/financial-reports')
+            ->assertServiceUnavailable()
+            ->assertJsonPath('message', 'Financial report is temporarily unavailable. Retry the report.');
     }
 }
