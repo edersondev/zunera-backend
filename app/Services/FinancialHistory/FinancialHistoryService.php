@@ -14,6 +14,7 @@ use App\Models\Transaction;
 use App\Models\Transfer;
 use App\Models\User;
 use App\Services\CreditCards\CreditCardMoney;
+use App\Services\CreditCards\RecognizedCardExpenseProjection;
 use App\Services\RecurringTransactions\RecurringTransactionService;
 use App\Services\Transactions\TransactionTextNormalizer;
 use App\Services\Transfers\TransferTextNormalizer;
@@ -29,6 +30,7 @@ final class FinancialHistoryService
 {
     public function __construct(
         private readonly RecurringTransactionService $recurringTransactions,
+        private readonly RecognizedCardExpenseProjection $recognizedCards,
     ) {}
 
     /**
@@ -278,6 +280,28 @@ final class FinancialHistoryService
             ->whereIn('id', $cardExpenseIds)
             ->get()
             ->keyBy('id');
+
+        if ($cardExpenses->isNotEmpty()) {
+            $from = $cardExpenses->min(static fn (CreditCardInstallment $installment): string => $installment->statement->closing_date->toDateString());
+            $to = $cardExpenses->max(static fn (CreditCardInstallment $installment): string => $installment->statement->closing_date->toDateString());
+            $recognized = DB::query()->fromSub(
+                $this->recognizedCards->installments((int) $user->id, $from, $to),
+                'recognized',
+            )->whereIn('recognized.installment_id', $cardExpenseIds)->get()->keyBy('installment_id');
+            $events = $this->recognizedCards->creditEventsForInstallments((int) $user->id, array_map('intval', $cardExpenseIds));
+
+            foreach ($cardExpenses as $installment) {
+                $installment->setAttribute(
+                    'recognized_amount_centavos',
+                    (int) $recognized->get($installment->id)->recognized_amount_centavos,
+                );
+                $installment->setAttribute(
+                    'recognized_adjustment_centavos',
+                    (int) $recognized->get($installment->id)->recognized_adjustment_centavos,
+                );
+                $installment->setAttribute('credit_events', $events[$installment->id] ?? []);
+            }
+        }
 
         $entries = [];
         foreach ($keys as $key) {

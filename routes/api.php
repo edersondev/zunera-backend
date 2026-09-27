@@ -16,6 +16,7 @@ use App\Http\Controllers\Api\V1\FinancialDashboardController;
 use App\Http\Controllers\Api\V1\FinancialGoalController;
 use App\Http\Controllers\Api\V1\FinancialGoalDashboardController;
 use App\Http\Controllers\Api\V1\FinancialHistoryController;
+use App\Http\Controllers\Api\V1\FinancialReportController;
 use App\Http\Controllers\Api\V1\RecurringTransactionController;
 use App\Http\Controllers\Api\V1\TransactionController;
 use App\Http\Controllers\Api\V1\TransferController;
@@ -77,6 +78,8 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/transfers/{transfer_id}/restore', [TransferController::class, 'restore'])->whereNumber('transfer_id');
 
         Route::get('/financial-history', [FinancialHistoryController::class, 'index']);
+        Route::get('/financial-reports', [FinancialReportController::class, 'show']);
+        Route::get('/financial-reports/contributions', [FinancialReportController::class, 'contributions']);
 
         Route::get('/financial-dashboard/summary', [FinancialDashboardController::class, 'summary']);
         Route::get('/financial-dashboard/accounts', [FinancialDashboardController::class, 'accounts']);
