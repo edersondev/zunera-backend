@@ -46,7 +46,7 @@ final class FinancialHistoryResource extends JsonResource
         return [
             'movement_kind' => 'credit_card_expense',
             'id' => $installment->id,
-            'amount_centavos' => $installment->netAmountCentavos(),
+            'amount_centavos' => (int) ($installment->getAttribute('recognized_amount_centavos') ?? $installment->netAmountCentavos()),
             'currency_code' => $purchase->currency_code,
             'movement_date' => $statement?->closing_date?->toDateString(),
             'status' => 'effective',
@@ -55,8 +55,9 @@ final class FinancialHistoryResource extends JsonResource
             'installment' => [
                 'sequence' => $installment->sequence,
                 'total_count' => $purchase->installment_count,
-                'credit_adjustment_centavos' => $installment->credit_adjustment_centavos,
+                'credit_adjustment_centavos' => (int) ($installment->getAttribute('recognized_adjustment_centavos') ?? $installment->credit_adjustment_centavos),
             ],
+            'credit_events' => $installment->getAttribute('credit_events') ?? [],
             'credit_card' => [
                 'id' => $purchase->creditCard?->id,
                 'name' => $purchase->creditCard?->name,
