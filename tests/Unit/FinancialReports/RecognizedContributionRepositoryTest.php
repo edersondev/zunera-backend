@@ -39,9 +39,9 @@ final class RecognizedContributionRepositoryTest extends TestCase
         self::assertSame(7_001, $rows->where('classification', 'expense')->sum('signed_amount_centavos'));
         self::assertSame(3, $rows->where('source_kind', 'card_installment')->count());
         $adjustments = $rows->where('source_kind', 'card_credit_adjustment')->sortBy('recognized_date')->values();
-        self::assertSame([-3_334, -1_667], $adjustments->pluck('signed_amount_centavos')->map(intval(...))->all());
+        self::assertSame([-3_334, -1_667], $adjustments->pluck('signed_amount_centavos')->map(static fn ($value): int => (int) $value)->all());
         self::assertSame(['2026-08-10', '2026-09-10'], $adjustments->pluck('recognized_date')->all());
-        self::assertSame([$event->id, $event->id], $adjustments->pluck('related_credit_event_id')->map(intval(...))->all());
+        self::assertSame([$event->id, $event->id], $adjustments->pluck('related_credit_event_id')->map(static fn ($value): int => (int) $value)->all());
         self::assertSame($purchase->id, (int) $adjustments->first()->related_purchase_id);
     }
 
