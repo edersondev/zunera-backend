@@ -4,8 +4,10 @@ declare(strict_types=1);
 
 namespace Tests\Feature\FinancialReports;
 
+use App\Data\FinancialReports\ReportScope;
 use App\Models\Category;
 use App\Models\FinancialAccount;
+use App\Services\FinancialReports\ReportSourceRevisionService;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
@@ -79,6 +81,27 @@ final class FinancialReportPerformanceTest extends TestCase
 
         if (getenv('REPORT_PERF_LOG') === '1') {
             fwrite(STDOUT, sprintf("\nReport performance: driver=%s records=10000 categories=100 accounts=50 overview=%.3fs first_page=%.3fs indexed=yes\n", DB::getDriverName(), $overviewSeconds, $detailSeconds));
+
+            $scope = new ReportScope((int) $user->id, 'current_month', null, '2026-09-01', '2026-09-26', '2026-08-01', '2026-08-26');
+            $revisionService = app(ReportSourceRevisionService::class);
+            $samples = ['overview' => [], 'first_page' => [], 'revision' => []];
+            for ($attempt = 0; $attempt < 20; $attempt++) {
+                $started = microtime(true);
+                $this->getJson('/api/v1/financial-reports')->assertOk();
+                $samples['overview'][] = microtime(true) - $started;
+
+                $started = microtime(true);
+                $this->getJson('/api/v1/financial-reports/contributions?metric=realized_expenses&limit=100')->assertOk();
+                $samples['first_page'][] = microtime(true) - $started;
+
+                $started = microtime(true);
+                $revisionService->forScope($scope);
+                $samples['revision'][] = microtime(true) - $started;
+            }
+            foreach ($samples as $name => $durations) {
+                sort($durations);
+                fwrite(STDOUT, sprintf("%s 20 warm MySQL samples: median=%.3fs p95=%.3fs max=%.3fs\n", $name, $durations[9], $durations[18], $durations[19]));
+            }
         }
     }
 }

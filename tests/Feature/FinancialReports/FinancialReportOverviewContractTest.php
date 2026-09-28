@@ -17,6 +17,63 @@ final class FinancialReportOverviewContractTest extends TestCase
     use RefreshDatabase;
 
     #[Test]
+    public function source_revision_changes_when_a_contribution_changes_without_changing_its_total(): void
+    {
+        $user = $this->reportSignIn();
+        $account = $this->reportAccount($user);
+        $category = $this->reportCategory($user);
+        $transaction = $this->reportTransaction($user, $account, $category, 1_000, '2026-09-10');
+
+        $before = $this->getJson('/api/v1/financial-reports')->assertOk()->json('data');
+        self::assertNotEmpty($before['source_revision']);
+
+        $transaction->update(['description' => 'Updated report label']);
+        $after = $this->getJson('/api/v1/financial-reports')->assertOk()->json('data');
+        self::assertSame($before['summary'], $after['summary']);
+        self::assertNotSame($before['source_revision'], $after['source_revision']);
+    }
+
+    #[Test]
+    public function effective_future_dated_custom_activity_reconciles_with_detail_and_dashboard(): void
+    {
+        $user = $this->reportSignIn();
+        $account = $this->reportAccount($user);
+        $category = $this->reportCategory($user, 'income');
+        $this->reportTransaction($user, $account, $category, 12_345, '2026-10-05');
+        $query = 'preset=custom&from=2026-10-01&to=2026-10-10';
+
+        $overview = $this->getJson('/api/v1/financial-reports?'.$query)->assertOk()->json('data');
+        $detail = $this->getJson('/api/v1/financial-reports/contributions?'.$query.'&metric=realized_income')->assertOk()->json('data');
+        $dashboard = $this->getJson('/api/v1/financial-dashboard/summary?'.$query)->assertOk()->json('data');
+        self::assertSame(12_345, $overview['summary']['realized_income']['amount_centavos']);
+        self::assertSame($overview['summary']['realized_income'], $detail['total']);
+        self::assertSame($overview['source_revision'], $detail['source_revision']);
+        self::assertSame('2026-10-05', $detail['contributions'][0]['recognized_date']);
+        self::assertSame($overview['summary']['realized_income'], $dashboard['realized_income']);
+        self::assertSame('2026-09-26', $this->getJson('/api/v1/financial-reports')->assertOk()->json('data.scope.current_period.to'));
+    }
+
+    #[Test]
+    public function weekly_partial_boundaries_and_zero_intervals_reconcile_under_one_revision(): void
+    {
+        $user = $this->reportSignIn('2026-10-01');
+        $account = $this->reportAccount($user);
+        $category = $this->reportCategory($user);
+        $this->reportTransaction($user, $account, $category, 2_500, '2026-08-15');
+        $query = 'preset=custom&from=2026-08-15&to=2026-09-30';
+
+        $overview = $this->getJson('/api/v1/financial-reports?'.$query)->assertOk()->json('data');
+        self::assertSame('week', $overview['evolution_granularity']);
+        self::assertSame('2026-08-15', $overview['evolution'][0]['from']);
+        self::assertTrue($overview['evolution'][0]['is_partial']);
+        self::assertTrue($overview['evolution'][count($overview['evolution']) - 1]['is_partial']);
+        self::assertContains(0, collect($overview['evolution'])->pluck('realized_expenses.amount_centavos')->all());
+        self::assertSame(2_500, collect($overview['evolution'])->sum('realized_expenses.amount_centavos'));
+        self::assertSame(2_500, collect($overview['expense_categories'])->sum('total.amount_centavos'));
+        self::assertNotEmpty($overview['source_revision']);
+    }
+
+    #[Test]
     public function summary_intervals_categories_accounts_and_comparison_reconcile_to_centavo(): void
     {
         $user = $this->reportSignIn();
@@ -112,6 +169,7 @@ final class FinancialReportOverviewContractTest extends TestCase
     public function wholly_unavailable_report_returns_service_unavailable(): void
     {
         $this->reportSignIn();
+        DB::partialMock()->shouldReceive('transaction')->andReturnUsing(static fn (callable $read): mixed => $read());
         DB::partialMock()->shouldReceive('query')->andThrow(new RuntimeException('Report reads failed.'));
 
         $this->getJson('/api/v1/financial-reports')

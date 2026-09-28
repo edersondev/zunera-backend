@@ -17,6 +17,7 @@ final class FinancialReportContributionService
     public function __construct(
         private readonly RecognizedContributionRepository $contributions,
         private readonly AccountMovementRepository $movements,
+        private readonly ReportSourceRevisionService $revisions,
     ) {}
 
     /** @return array<string, mixed> */
@@ -27,6 +28,18 @@ final class FinancialReportContributionService
         string $whichPeriod = 'current',
         ?string $cursor = null,
         int $limit = 50,
+    ): array {
+        return DB::transaction(fn (): array => $this->readPage($scope, $metric, $metricId, $whichPeriod, $cursor, $limit));
+    }
+
+    /** @return array<string, mixed> */
+    private function readPage(
+        ReportScope $scope,
+        string $metric,
+        ?int $metricId,
+        string $whichPeriod,
+        ?string $cursor,
+        int $limit,
     ): array {
         $limit = max(1, min(100, $limit));
         $source = $this->metricRows($scope, $metric, $metricId, $whichPeriod);
@@ -69,6 +82,7 @@ final class FinancialReportContributionService
 
         return [
             'scope' => $scope->toArray(),
+            'source_revision' => $this->revisions->forScope($scope),
             'which_period' => $whichPeriod,
             'metric' => $metric,
             'metric_id' => $metricId,

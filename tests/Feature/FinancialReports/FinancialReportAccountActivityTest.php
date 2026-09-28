@@ -16,6 +16,22 @@ final class FinancialReportAccountActivityTest extends TestCase
     use RefreshDatabase;
 
     #[Test]
+    public function transfer_only_edit_changes_revision_without_changing_realized_totals(): void
+    {
+        $user = $this->reportSignIn();
+        $a = $this->reportAccount($user);
+        $b = $this->reportAccount($user);
+        $transfer = $this->reportTransfer($user, $a, $b, 3_000, '2026-09-20');
+        $before = $this->getJson('/api/v1/financial-reports')->assertOk()->json('data');
+
+        $transfer->update(['amount_centavos' => 4_000]);
+        $after = $this->getJson('/api/v1/financial-reports')->assertOk()->json('data');
+        self::assertSame($before['summary'], $after['summary']);
+        self::assertNotSame($before['source_revision'], $after['source_revision']);
+        self::assertSame(4_000, collect($after['accounts'])->firstWhere('account.id', $a->id)['transfer_out']['amount_centavos']);
+    }
+
+    #[Test]
     public function direct_flow_transfer_directions_and_settlement_have_distinct_figures(): void
     {
         $user = $this->reportSignIn();

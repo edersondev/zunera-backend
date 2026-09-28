@@ -31,6 +31,19 @@ final class ReportPeriodResolverTest extends TestCase
     }
 
     #[Test]
+    public function utc_midnight_rollover_uses_sao_paulo_business_date_for_current_presets(): void
+    {
+        $resolver = app(ReportPeriodResolver::class);
+        $beforeMidnight = $resolver->resolve(7, ['preset' => 'current_month'], CarbonImmutable::parse('2026-09-28 02:30:00', 'UTC'));
+        $afterMidnight = $resolver->resolve(7, ['preset' => 'current_month'], CarbonImmutable::parse('2026-09-28 03:30:00', 'UTC'));
+
+        self::assertSame('2026-09-27', $beforeMidnight->currentTo);
+        self::assertSame('2026-08-27', $beforeMidnight->previousTo);
+        self::assertSame('2026-09-28', $afterMidnight->currentTo);
+        self::assertSame('2026-08-28', $afterMidnight->previousTo);
+    }
+
+    #[Test]
     public function selected_completed_month_uses_full_prior_month_but_custom_uses_equal_days(): void
     {
         $resolver = app(ReportPeriodResolver::class);

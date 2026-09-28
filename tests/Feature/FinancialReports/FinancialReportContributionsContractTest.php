@@ -6,6 +6,7 @@ namespace Tests\Feature\FinancialReports;
 
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\FinancialReports\FinancialReportFixtures;
 use Tests\TestCase;
@@ -14,6 +15,74 @@ final class FinancialReportContributionsContractTest extends TestCase
 {
     use FinancialReportFixtures;
     use RefreshDatabase;
+
+    #[Test]
+    public function detail_revision_matches_overview_and_detects_offsetting_source_edits(): void
+    {
+        $user = $this->reportSignIn();
+        $account = $this->reportAccount($user);
+        $category = $this->reportCategory($user);
+        $first = $this->reportTransaction($user, $account, $category, 3_000, '2026-09-10');
+        $second = $this->reportTransaction($user, $account, $category, 2_000, '2026-09-11');
+        $url = '/api/v1/financial-reports/contributions?metric=realized_expenses&limit=1';
+
+        $before = $this->getJson('/api/v1/financial-reports')->assertOk()->json('data');
+        $page = $this->getJson($url)->assertOk()->json('data');
+        self::assertSame($before['source_revision'], $page['source_revision']);
+        self::assertSame(5_000, $page['total']['amount_centavos']);
+        self::assertNotNull($page['next_cursor']);
+
+        $first->update(['amount_centavos' => 3_500]);
+        $second->update(['amount_centavos' => 1_500]);
+        $after = $this->getJson('/api/v1/financial-reports')->assertOk()->json('data');
+        $later = $this->getJson($url.'&cursor='.urlencode($page['next_cursor']))->assertOk()->json('data');
+        self::assertSame($before['summary'], $after['summary']);
+        self::assertNotSame($before['source_revision'], $after['source_revision']);
+        self::assertSame($after['source_revision'], $later['source_revision']);
+        self::assertSame(5_000, $later['total']['amount_centavos']);
+    }
+
+    #[Test]
+    public function revision_tracks_prior_period_labels_and_excludes_foreign_sources(): void
+    {
+        $user = $this->reportSignIn();
+        $account = $this->reportAccount($user);
+        $category = $this->reportCategory($user);
+        $this->reportTransaction($user, $account, $category, 1_000, '2026-08-10');
+        $before = $this->getJson('/api/v1/financial-reports')->assertOk()->json('data');
+
+        $foreign = User::factory()->create();
+        $foreignAccount = $this->reportAccount($foreign);
+        $foreignCategory = $this->reportCategory($foreign);
+        $this->reportTransaction($foreign, $foreignAccount, $foreignCategory, 8_000, '2026-09-10');
+        $isolated = $this->getJson('/api/v1/financial-reports')->assertOk()->json('data');
+        self::assertSame($before['source_revision'], $isolated['source_revision']);
+
+        DB::table('categories')->where('id', $category->id)->update(['name' => 'Renamed prior category']);
+        $after = $this->getJson('/api/v1/financial-reports')->assertOk()->json('data');
+        self::assertNotSame($before['source_revision'], $after['source_revision']);
+        self::assertSame($before['summary'], $after['summary']);
+    }
+
+    #[Test]
+    public function card_refund_changes_revision_and_filtered_scope_has_its_own_revision(): void
+    {
+        $user = $this->reportSignIn();
+        $account = $this->reportAccount($user, ['initial_balance_centavos' => 100_000, 'current_balance_centavos' => 100_000]);
+        $category = $this->reportCategory($user);
+        $purchase = $this->reportCardPurchase($user, $category, 10_000, 1, '2026-08-05');
+        $period = 'preset=historical_month&month=2026-08';
+        $before = $this->getJson('/api/v1/financial-reports?'.$period)->assertOk()->json('data');
+        $filtered = $this->getJson('/api/v1/financial-reports?'.$period.'&category_id='.$category->id)->assertOk()->json('data');
+        self::assertNotSame($before['source_revision'], $filtered['source_revision']);
+
+        $this->reportPaidRefund($purchase, $account, 2_000, '2026-08-17', '2026-09-25', 'revision-paid-refund');
+        $after = $this->getJson('/api/v1/financial-reports?'.$period)->assertOk()->json('data');
+        $detail = $this->getJson('/api/v1/financial-reports/contributions?'.$period.'&metric=expense_category&metric_id='.$category->id)->assertOk()->json('data');
+        self::assertSame(8_000, $detail['total']['amount_centavos']);
+        self::assertNotSame($before['source_revision'], $after['source_revision']);
+        self::assertSame($after['source_revision'], $detail['source_revision']);
+    }
 
     #[Test]
     public function summary_and_category_metrics_reconcile_with_signed_current_and_prior_rows(): void
