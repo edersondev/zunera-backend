@@ -21,10 +21,17 @@ final class FinancialReportService
         private readonly RecognizedContributionRepository $contributions,
         private readonly AccountMovementRepository $movements,
         private readonly ReportPeriodResolver $periods,
+        private readonly ReportSourceRevisionService $revisions,
     ) {}
 
     /** @return array<string, mixed> */
     public function overview(ReportScope $scope): array
+    {
+        return DB::transaction(fn (): array => $this->readOverview($scope));
+    }
+
+    /** @return array<string, mixed> */
+    private function readOverview(ReportScope $scope): array
     {
         $states = [];
         $current = $this->section($states, 'summary', fn (): array => $this->totals($scope));
@@ -60,6 +67,7 @@ final class FinancialReportService
 
         return [
             'scope' => $scope->toArray(),
+            'source_revision' => $this->revisions->forScope($scope),
             'section_states' => $states,
             'summary' => $current === null ? null : [
                 'realized_income' => $this->money($current['income']),
