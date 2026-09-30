@@ -13,6 +13,7 @@ use App\Models\NotificationProjectionFact;
 use App\Services\CreditCards\CreditCardObligationReconciler;
 use App\Services\RecurringTransactions\RecurringDateRange;
 use Carbon\CarbonImmutable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Cache;
 
 final class StatementNotificationProjector
@@ -71,21 +72,45 @@ final class StatementNotificationProjector
     public function scanDateCandidates(int $limit = 5000): int
     {
         $today = $this->businessToday();
-        $cursor = (int) Cache::get('notifications.statement_scan_cursor', 0);
-        $statements = CreditCardStatement::query()
-            ->where('id', '>', $cursor)
+        $limit = max(1, min($limit, 5000));
+        $dueWindowStart = $today->subDay()->toDateString();
+        $eligible = CreditCardStatement::query()
             ->whereDate('closing_date', '<', $today->toDateString())
             ->whereDate('due_date', '<=', $today->addDays(3)->toDateString())
-            ->orderBy('id')
-            ->limit(max(1, min($limit, 5000)))
-            ->get();
+            ->whereRaw('(original_amount_centavos - credit_adjustment_centavos - paid_centavos - card_credit_applied_centavos) > 0');
 
+        $currentLimit = $limit === 1 ? 1 : $limit - max(1, intdiv($limit, 5));
+        $currentCount = $this->scanDateRange(
+            (clone $eligible)->whereDate('due_date', '>=', $dueWindowStart),
+            $currentLimit,
+            'notifications.statement_current_scan_cursor.'.$today->toDateString(),
+            $today,
+        );
+        $overdueCount = $this->scanDateRange(
+            (clone $eligible)->whereDate('due_date', '<', $dueWindowStart),
+            $limit - $currentCount,
+            'notifications.statement_overdue_scan_cursor',
+            $today,
+        );
+
+        return $currentCount + $overdueCount;
+    }
+
+    /** @param Builder<CreditCardStatement> $query */
+    private function scanDateRange(Builder $query, int $limit, string $cursorKey, CarbonImmutable $today): int
+    {
+        if ($limit === 0) {
+            return 0;
+        }
+
+        $cursor = (int) Cache::get($cursorKey, 0);
+        $statements = $query->where('id', '>', $cursor)->orderBy('id')->limit($limit)->get();
         foreach ($statements as $statement) {
             $stage = $this->stage($statement, $today);
             $this->evaluate((int) $statement->user_id, (int) $statement->id, $this->boundaryFor($statement, $stage));
         }
 
-        Cache::put('notifications.statement_scan_cursor', $statements->count() === $limit ? (int) $statements->last()->id : 0, now()->addDay());
+        Cache::put($cursorKey, $statements->count() === $limit ? (int) $statements->last()->id : 0, now()->addDay());
 
         return $statements->count();
     }
@@ -140,12 +165,14 @@ final class StatementNotificationProjector
         $due = CarbonImmutable::parse($statement->due_date->toDateString(), RecurringDateRange::BUSINESS_TIMEZONE);
         $closed = CarbonImmutable::parse($statement->closing_date->toDateString(), RecurringDateRange::BUSINESS_TIMEZONE)->addDay();
 
-        return match ($stage) {
+        $boundary = match ($stage) {
             'statement_approaching' => $due->subDays(3)->greaterThan($closed) ? $due->subDays(3) : $closed,
             'statement_due_today' => $due,
             'statement_overdue' => $due->addDay(),
             default => null,
         };
+
+        return $boundary?->setTimezone('UTC');
     }
 
     private function stage(CreditCardStatement $statement, CarbonImmutable $today): ?string

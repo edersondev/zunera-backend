@@ -12,6 +12,7 @@ use App\Models\User;
 use App\Services\Notifications\StatementNotificationProjector;
 use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\CreditCards\CreditCardFixtures;
 use Tests\TestCase;
@@ -149,6 +150,45 @@ final class StatementNotificationTest extends TestCase
         $projector->evaluate((int) $user->id, (int) $statement->id);
         self::assertNotNull(NotificationEvent::query()->firstOrFail()->resolved_at);
         self::assertSame(1, NotificationEvent::query()->count());
+    }
+
+    #[Test]
+    public function date_scan_records_business_midnight_as_a_utc_instant(): void
+    {
+        [$user, $statement] = $this->statement();
+        $this->businessDay('2026-09-17');
+        Cache::forget('notifications.statement_current_scan_cursor.2026-09-17');
+
+        app(StatementNotificationProjector::class)->scanDateCandidates();
+
+        $event = NotificationEvent::query()->where('user_id', $user->id)
+            ->where('source_id', $statement->id)->where('type', 'statement_due_today')->firstOrFail();
+        self::assertSame('2026-09-17 03:00:00', $event->getRawOriginal('event_at'));
+        self::assertSame('2026-09-17T03:00:00+00:00', $event->event_at->toIso8601String());
+    }
+
+    #[Test]
+    public function date_scan_prioritizes_new_due_statements_over_old_overdue_backlog(): void
+    {
+        foreach (range(1, 2) as $_) {
+            [, $oldStatement] = $this->statement();
+            $oldStatement->closing_date = '2026-08-03';
+            $oldStatement->due_date = '2026-08-10';
+            $oldStatement->save();
+        }
+        [$user, $dueStatement] = $this->statement();
+        $this->businessDay('2026-09-17');
+        Cache::forget('notifications.statement_current_scan_cursor.2026-09-17');
+        Cache::forget('notifications.statement_overdue_scan_cursor');
+
+        $projector = app(StatementNotificationProjector::class);
+        self::assertSame(2, $projector->scanDateCandidates(2));
+        self::assertSame(1, NotificationEvent::query()->where('user_id', $user->id)
+            ->where('source_id', $dueStatement->id)->where('type', 'statement_due_today')->count());
+        self::assertSame(1, NotificationEvent::query()->where('type', 'statement_overdue')->count());
+
+        self::assertSame(1, $projector->scanDateCandidates(2));
+        self::assertSame(2, NotificationEvent::query()->where('type', 'statement_overdue')->count());
     }
 
     #[Test]

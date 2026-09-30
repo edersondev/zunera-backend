@@ -37,7 +37,7 @@ final class NotificationEventService
                 'source_kind' => $candidate->sourceKind,
                 'source_id' => $candidate->sourceId,
                 'business_context' => json_encode($candidate->identity, JSON_THROW_ON_ERROR),
-                'event_at' => $candidate->eventAt,
+                'event_at' => $candidate->eventAt->setTimezone('UTC'),
                 'read_at' => null,
                 'resolved_at' => $candidate->actionable ? null : $now,
                 'visibility' => $enabled ? 'visible' : 'suppressed',

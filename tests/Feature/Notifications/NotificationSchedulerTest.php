@@ -96,7 +96,8 @@ final class NotificationSchedulerTest extends TestCase
     public function minute_command_finds_unpaid_statement_after_business_day_boundary(): void
     {
         $this->travelTo(CarbonImmutable::parse('2026-09-15 00:02:00', 'America/Sao_Paulo'));
-        Cache::forget('notifications.statement_scan_cursor');
+        Cache::forget('notifications.statement_current_scan_cursor.2026-09-15');
+        Cache::forget('notifications.statement_overdue_scan_cursor');
         $user = User::factory()->create();
         $card = CreditCard::factory()->withUser($user)->create();
         CreditCardStatement::factory()->forCard($card)->closed()
