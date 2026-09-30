@@ -9,6 +9,7 @@ use App\Enums\CreditCards\CreditCardStatementStatus;
 use App\Models\CreditCard;
 use App\Models\CreditCardStatement;
 use App\Models\User;
+use App\Services\Notifications\StatementNotificationProjector;
 use Carbon\CarbonImmutable;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -19,6 +20,7 @@ final class CreditCardStatementService
     public function __construct(
         private readonly CreditCardObligationReconciler $reconciler,
         private readonly BillingCycleCalculator $cycles,
+        private readonly StatementNotificationProjector $notifications,
     ) {}
 
     /** @return LengthAwarePaginator<int, CreditCardStatement> */
@@ -87,9 +89,13 @@ final class CreditCardStatementService
 
     public function syncStatement(CreditCardStatement $statement): CreditCardStatement
     {
-        $this->reconciler->syncStatement($statement, $this->businessDate());
+        return DB::transaction(function () use ($statement): CreditCardStatement {
+            $this->reconciler->syncStatement($statement, $this->businessDate());
+            $statement->refresh();
+            $this->notifications->capture($statement);
 
-        return $statement->refresh();
+            return $statement;
+        });
     }
 
     private function businessDate(): CarbonImmutable

@@ -16,6 +16,7 @@ use App\Models\Category;
 use App\Models\MonthlyBudget;
 use App\Models\User;
 use App\Services\Categories\CategoryService;
+use App\Services\Notifications\BudgetNotificationProjector;
 use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -93,6 +94,7 @@ final class BudgetService
                     'category_color_snapshot' => $category->color,
                     'category_icon_snapshot' => $category->icon,
                 ]);
+                app(BudgetNotificationProjector::class)->captureMonth((int) $budget->user_id, (int) $budget->budget_year, (int) $budget->budget_month);
 
                 return $plan;
             });
@@ -109,17 +111,24 @@ final class BudgetService
     {
         $plan = $this->requirePlan($budget, $data->planId);
         $this->assertPlanMutable($plan);
-        $plan->planned_amount_centavos = $data->plannedAmountCentavos;
-        $plan->save();
 
-        return $plan;
+        return DB::transaction(function () use ($plan, $data, $budget): BudgetCategoryPlan {
+            $plan->planned_amount_centavos = $data->plannedAmountCentavos;
+            $plan->save();
+            app(BudgetNotificationProjector::class)->captureMonth((int) $budget->user_id, (int) $budget->budget_year, (int) $budget->budget_month);
+
+            return $plan;
+        });
     }
 
     public function removePlan(User $user, MonthlyBudget $budget, int $planId): void
     {
         $plan = $this->requirePlan($budget, $planId);
         $this->assertPlanMutable($plan);
-        $plan->delete();
+        DB::transaction(function () use ($plan, $budget): void {
+            $plan->delete();
+            app(BudgetNotificationProjector::class)->captureRemoved((int) $budget->user_id, (int) $plan->id, (int) $budget->budget_year, (int) $budget->budget_month);
+        });
     }
 
     /**
@@ -177,6 +186,8 @@ final class BudgetService
                         'category_icon_snapshot' => $category->icon,
                     ]);
                 }
+
+                app(BudgetNotificationProjector::class)->captureMonth((int) $user->id, (int) $destination->budget_year, (int) $destination->budget_month);
 
                 return $destination;
             });

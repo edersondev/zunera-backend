@@ -18,6 +18,7 @@ use App\Models\RecurringCardOccurrence;
 use App\Models\RecurringTransaction;
 use App\Models\User;
 use App\Services\CreditCards\CreditCardPurchaseService;
+use App\Services\Notifications\RecurringReviewProjector;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
@@ -70,6 +71,7 @@ final class RecurringCardOccurrenceActionService
             $locked->action_claim_key = null;
             $locked->action_claimed_at = null;
             $locked->save();
+            app(RecurringReviewProjector::class)->captureCard($locked);
 
             return $this->result($locked);
         });
@@ -288,36 +290,46 @@ final class RecurringCardOccurrenceActionService
 
     private function markState(RecurringCardOccurrence $occurrence, CardOccurrenceState $state, ?string $failureCode): void
     {
-        RecurringCardOccurrence::query()
-            ->whereKey($occurrence->id)
-            ->whereIn('state', [
-                CardOccurrenceState::Expected->value,
-                CardOccurrenceState::AwaitingOverLimit->value,
-                CardOccurrenceState::Failed->value,
-            ])
-            ->whereNull('action_claim_key')
-            ->update([
-                'state' => $state->value,
-                'failure_code' => $failureCode,
-                'last_attempt_at' => now(),
-                'updated_at' => now(),
-            ]);
+        DB::transaction(function () use ($occurrence, $state, $failureCode): void {
+            $changed = RecurringCardOccurrence::query()
+                ->whereKey($occurrence->id)
+                ->whereIn('state', [
+                    CardOccurrenceState::Expected->value,
+                    CardOccurrenceState::AwaitingOverLimit->value,
+                    CardOccurrenceState::Failed->value,
+                ])
+                ->whereNull('action_claim_key')
+                ->update([
+                    'state' => $state->value,
+                    'failure_code' => $failureCode,
+                    'last_attempt_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            if ($changed !== 0) {
+                app(RecurringReviewProjector::class)->captureCard(RecurringCardOccurrence::query()->findOrFail($occurrence->id));
+            }
+        });
     }
 
     private function markFailed(RecurringCardOccurrence $claim, string $failureCode): void
     {
-        RecurringCardOccurrence::query()
-            ->whereKey($claim->id)
-            ->where('action_claim_key', $claim->action_claim_key)
-            ->where('action_choice_version', $claim->action_choice_version)
-            ->update([
-                'state' => CardOccurrenceState::Failed->value,
-                'failure_code' => $failureCode,
-                'last_attempt_at' => now(),
-                'action_claim_key' => null,
-                'action_claimed_at' => null,
-                'updated_at' => now(),
-            ]);
+        DB::transaction(function () use ($claim, $failureCode): void {
+            $changed = RecurringCardOccurrence::query()
+                ->whereKey($claim->id)
+                ->where('action_claim_key', $claim->action_claim_key)
+                ->where('action_choice_version', $claim->action_choice_version)
+                ->update([
+                    'state' => CardOccurrenceState::Failed->value,
+                    'failure_code' => $failureCode,
+                    'last_attempt_at' => now(),
+                    'action_claim_key' => null,
+                    'action_claimed_at' => null,
+                    'updated_at' => now(),
+                ]);
+            if ($changed !== 0) {
+                app(RecurringReviewProjector::class)->captureCard(RecurringCardOccurrence::query()->findOrFail($claim->id));
+            }
+        });
     }
 
     /** @return array{occurrence: RecurringCardOccurrence, status: int} */

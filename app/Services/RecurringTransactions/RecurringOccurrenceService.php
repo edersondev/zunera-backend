@@ -17,6 +17,7 @@ use App\Models\RecurringCardOccurrence;
 use App\Models\RecurringTransaction;
 use App\Models\Transaction;
 use App\Services\CreditCards\CreditCardPurchaseService;
+use App\Services\Notifications\RecurringReviewProjector;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Facades\DB;
@@ -289,7 +290,7 @@ final class RecurringOccurrenceService
         $card = $rule->creditCard()->first();
         $category = $rule->category()->first();
 
-        return RecurringCardOccurrence::query()->create([
+        $occurrence = RecurringCardOccurrence::query()->create([
             'user_id' => $rule->user_id,
             'recurring_transaction_id' => $rule->id,
             'scheduled_date' => $scheduledDate,
@@ -308,6 +309,12 @@ final class RecurringOccurrenceService
             'category_name_snapshot' => $category?->name ?? '',
             'state' => CardOccurrenceState::Expected,
         ]);
+
+        if ($occurrence->generation_mode_snapshot === CardGenerationMode::Confirmation) {
+            app(RecurringReviewProjector::class)->captureCard($occurrence);
+        }
+
+        return $occurrence;
     }
 
     private function advanceCursor(RecurringTransaction $rule, string $scheduledDate): void
@@ -320,20 +327,25 @@ final class RecurringOccurrenceService
 
     private function markState(int $occurrenceId, CardOccurrenceState $state, ?string $failureCode): void
     {
-        RecurringCardOccurrence::query()
-            ->whereKey($occurrenceId)
-            ->whereIn('state', [
-                CardOccurrenceState::Expected->value,
-                CardOccurrenceState::AwaitingOverLimit->value,
-                CardOccurrenceState::Failed->value,
-            ])
-            ->whereNull('action_claim_key')
-            ->update([
-                'state' => $state->value,
-                'failure_code' => $failureCode,
-                'last_attempt_at' => now(),
-                'updated_at' => now(),
-            ]);
+        DB::transaction(function () use ($occurrenceId, $state, $failureCode): void {
+            $changed = RecurringCardOccurrence::query()
+                ->whereKey($occurrenceId)
+                ->whereIn('state', [
+                    CardOccurrenceState::Expected->value,
+                    CardOccurrenceState::AwaitingOverLimit->value,
+                    CardOccurrenceState::Failed->value,
+                ])
+                ->whereNull('action_claim_key')
+                ->update([
+                    'state' => $state->value,
+                    'failure_code' => $failureCode,
+                    'last_attempt_at' => now(),
+                    'updated_at' => now(),
+                ]);
+            if ($changed !== 0) {
+                app(RecurringReviewProjector::class)->captureCard(RecurringCardOccurrence::query()->findOrFail($occurrenceId));
+            }
+        });
     }
 
     private function generateAccountOccurrence(RecurringTransaction $rule, string $scheduledDate): bool
@@ -347,7 +359,7 @@ final class RecurringOccurrenceService
         }
 
         try {
-            Transaction::query()->create([
+            $transaction = Transaction::query()->create([
                 'user_id' => $rule->user_id,
                 'financial_account_id' => $rule->financial_account_id,
                 'category_id' => $rule->category_id,
@@ -362,6 +374,7 @@ final class RecurringOccurrenceService
                 'recurring_transaction_id' => $rule->id,
                 'recurrence_scheduled_date' => $scheduledDate,
             ]);
+            app(RecurringReviewProjector::class)->captureTransaction($transaction);
             FinancialAccount::query()
                 ->whereKey($rule->financial_account_id)
                 ->update(['has_financial_movements' => true]);

@@ -16,6 +16,8 @@ use App\Models\Category;
 use App\Models\FinancialAccount;
 use App\Models\Transaction;
 use App\Models\User;
+use App\Services\Notifications\BudgetNotificationProjector;
+use App\Services\Notifications\RecurringReviewProjector;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -72,6 +74,7 @@ final class TransactionService
                     $category->has_financial_transactions = true;
                     $category->save();
                     app(TransactionBalanceReconciler::class)->reconcile(null, $transaction);
+                    $this->captureBudgetTransition(null, $transaction);
 
                     return ['transaction_id' => $transaction->id, 'status' => 201];
                 },
@@ -169,6 +172,8 @@ final class TransactionService
                     $category->save();
                 }
                 app(TransactionBalanceReconciler::class)->reconcile($before, $locked);
+                $this->captureBudgetTransition($before, $locked);
+                app(RecurringReviewProjector::class)->captureTransaction($locked);
                 $meta = [];
                 if ($locked->status === TransactionStatus::Effective && TransactionDateRange::isFuture($locked->transaction_date)) {
                     $meta['notice'] = ['code' => 'effective_future_date', 'message' => 'This future-dated transaction remains effective and still affects the account balance.'];
@@ -192,6 +197,8 @@ final class TransactionService
             $locked->removed_at = now();
             $locked->save();
             app(TransactionBalanceReconciler::class)->reconcile($before, $locked);
+            $this->captureBudgetTransition($before, $locked);
+            app(RecurringReviewProjector::class)->captureTransaction($locked);
 
             return ['transaction_id' => $locked->id, 'status' => 200];
         });
@@ -213,6 +220,8 @@ final class TransactionService
             $locked->status = $status;
             $locked->save();
             app(TransactionBalanceReconciler::class)->reconcile($before, $locked);
+            $this->captureBudgetTransition($before, $locked);
+            app(RecurringReviewProjector::class)->captureTransaction($locked);
 
             return ['transaction_id' => $locked->id, 'status' => 200];
         });
@@ -287,6 +296,19 @@ final class TransactionService
             'response' => $response,
             'replayed' => $result['replayed'],
         ];
+    }
+
+    private function captureBudgetTransition(?Transaction $before, Transaction $after): void
+    {
+        $dates = [];
+        foreach ([$before, $after] as $transaction) {
+            if ($transaction !== null && $transaction->type->value === 'expense' && $transaction->countsTowardBalance()) {
+                $dates[$transaction->transaction_date->format('Y-m')] = $transaction->transaction_date->toDateString();
+            }
+        }
+        foreach ($dates as $date) {
+            app(BudgetNotificationProjector::class)->captureDate((int) $after->user_id, $date);
+        }
     }
 
     /** @param array<string, mixed> $payload */

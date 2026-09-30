@@ -19,6 +19,9 @@ use App\Models\CreditCardPurchase;
 use App\Models\CreditCardStatement;
 use App\Models\RecurringCardOccurrence;
 use App\Models\User;
+use App\Services\Notifications\BudgetNotificationProjector;
+use App\Services\Notifications\RecurringReviewProjector;
+use App\Services\Notifications\StatementNotificationProjector;
 use Carbon\CarbonImmutable;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\DB;
@@ -32,6 +35,7 @@ final class CreditCardPurchaseService
         private readonly CreditCardObligationReconciler $reconciler,
         private readonly BillingCycleCalculator $cycles,
         private readonly InstallmentAllocator $allocator,
+        private readonly StatementNotificationProjector $notifications,
     ) {}
 
     /** @return array{target_type: string, target_id: int, status: int, response: array<string, mixed>, replayed: bool, purchase: CreditCardPurchase} */
@@ -79,8 +83,12 @@ final class CreditCardPurchaseService
                 ]);
 
                 $cycle = $this->cycles->cycleForDate($data->purchaseDate, $lockedCard->closing_day, $lockedCard->due_day);
+                $statementIds = [];
+                $recognitionDates = [];
                 foreach ($this->allocator->allocate($data->totalAmountCentavos, $data->installmentCount) as $index => $amountCentavos) {
                     $statement = $this->statementFor($lockedCard, $cycle);
+                    $statementIds[] = (int) $statement->id;
+                    $recognitionDates[] = $cycle->closingDate;
                     CreditCardInstallment::query()->create([
                         'user_id' => $user->id,
                         'credit_card_purchase_id' => $purchase->id,
@@ -95,6 +103,12 @@ final class CreditCardPurchaseService
                 }
 
                 $this->reconciler->refreshCardStatements($lockedCard, $this->businessDate());
+                foreach (array_unique($statementIds) as $statementId) {
+                    $this->notifications->capture(CreditCardStatement::query()->findOrFail($statementId));
+                }
+                foreach (array_unique($recognitionDates) as $date) {
+                    app(BudgetNotificationProjector::class)->captureDate((int) $user->id, $date);
+                }
                 $fresh = $purchase->refresh();
 
                 return [
@@ -240,6 +254,8 @@ final class CreditCardPurchaseService
             ]);
 
             $this->reconciler->refreshCardStatements($lockedCard, $this->businessDate());
+            $this->notifications->capture(CreditCardStatement::query()->findOrFail($statement->id));
+            app(BudgetNotificationProjector::class)->captureDate((int) $user->id, $cycle->closingDate);
 
             $lockedOccurrence->state = CardOccurrenceState::Recorded;
             $lockedOccurrence->recorded_at = now();
@@ -250,6 +266,7 @@ final class CreditCardPurchaseService
             $lockedOccurrence->action_claim_key = null;
             $lockedOccurrence->action_claimed_at = null;
             $lockedOccurrence->save();
+            app(RecurringReviewProjector::class)->captureCard($lockedOccurrence);
 
             return $purchase->refresh();
         });

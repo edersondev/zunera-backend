@@ -10,6 +10,7 @@ use App\Exceptions\FinancialGoals\FinancialGoalStateException;
 use App\Models\FinancialAccount;
 use App\Models\FinancialGoal;
 use App\Models\FinancialGoalActivity;
+use App\Services\Notifications\GoalMilestoneProjector;
 use Illuminate\Validation\ValidationException;
 
 final class FinancialGoalMutationService
@@ -43,6 +44,7 @@ final class FinancialGoalMutationService
             if ($input->initialAllocatedCentavos > 0) {
                 $this->activity($goal, 'initial_allocation', $input->initialAllocatedCentavos, $account?->id, $account?->name);
             }
+            app(GoalMilestoneProjector::class)->capture($goal);
 
             return ['goal_id' => (int) $goal->id, 'status' => 201, 'body' => ['data' => $this->query->project($goal)]];
         });
@@ -99,6 +101,7 @@ final class FinancialGoalMutationService
             $goal->save();
             $eventType = ['complete' => 'completed', 'reopen' => 'reopened', 'archive' => 'archived', 'restore' => 'restored'][$action];
             $this->activity($goal, $eventType, null, $goal->financial_account_id, $goal->account_name_snapshot, ['from' => $from, 'to' => $goal->status]);
+            app(GoalMilestoneProjector::class)->capture($goal);
 
             return ['goal_id' => $goalId, 'status' => 200, 'body' => ['data' => $this->query->project($goal)]];
         });
@@ -141,6 +144,7 @@ final class FinancialGoalMutationService
             $goal->unsetRelation('financialAccount');
             $eventType = $newAccountId !== $oldAccountId ? 'account_changed' : 'goal_updated';
             $this->activity($goal, $eventType, null, $newAccount?->id, $newAccount?->name, ['before' => $before, 'changes' => $input->changes]);
+            app(GoalMilestoneProjector::class)->capture($goal);
 
             return ['goal_id' => $goalId, 'status' => 200, 'body' => ['data' => $this->query->project($goal)]];
         });
@@ -170,6 +174,7 @@ final class FinancialGoalMutationService
                 throw FinancialGoalStateException::conflict('goal_withdrawal_exceeds_allocation', 'Withdrawal exceeds the goal allocation.');
             }
             $this->activity($goal, $type, $amount, $account?->id, $account?->name ?? $goal->account_name_snapshot);
+            app(GoalMilestoneProjector::class)->capture($goal);
 
             return ['goal_id' => $goalId, 'status' => 200, 'body' => ['data' => $this->query->project($goal)]];
         });
