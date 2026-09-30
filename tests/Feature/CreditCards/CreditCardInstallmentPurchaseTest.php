@@ -199,7 +199,7 @@ final class CreditCardInstallmentPurchaseTest extends TestCase
     public function installment_assignments_walk_month_and_year_boundaries(): void
     {
         $user = $this->cardSignIn();
-        $card = $this->activeCard($user, ['closing_day' => 31, 'due_day' => 31]);
+        $card = $this->activeCard($user, ['closing_day' => 31, 'due_day' => 31, 'credit_limit_centavos' => 500_000]);
 
         $response = $this->postJson('/api/v1/credit-cards/'.$card->id.'/purchases', [
             'category_id' => $this->expenseCategory($user)->id,

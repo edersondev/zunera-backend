@@ -17,6 +17,8 @@ use App\Http\Controllers\Api\V1\FinancialGoalController;
 use App\Http\Controllers\Api\V1\FinancialGoalDashboardController;
 use App\Http\Controllers\Api\V1\FinancialHistoryController;
 use App\Http\Controllers\Api\V1\FinancialReportController;
+use App\Http\Controllers\Api\V1\NotificationController;
+use App\Http\Controllers\Api\V1\NotificationPreferenceController;
 use App\Http\Controllers\Api\V1\RecurringTransactionController;
 use App\Http\Controllers\Api\V1\TransactionController;
 use App\Http\Controllers\Api\V1\TransferController;
@@ -30,6 +32,14 @@ Route::prefix('v1')->group(function (): void {
     Route::post('/integrations/auth-mail/delivery-events', [AuthMailDeliveryEventController::class, 'store']);
 
     Route::middleware(['auth:sanctum', 'session.lifetime'])->group(function (): void {
+        Route::get('/notifications', [NotificationController::class, 'index']);
+        Route::get('/notifications/summary', [NotificationController::class, 'summary']);
+        Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);
+        Route::patch('/notifications/{notification_id}/read', [NotificationController::class, 'read'])->whereNumber('notification_id');
+        Route::post('/notifications/{notification_id}/open', [NotificationController::class, 'open'])->whereNumber('notification_id');
+        Route::get('/notification-preferences', [NotificationPreferenceController::class, 'index']);
+        Route::patch('/notification-preferences/{category}', [NotificationPreferenceController::class, 'update']);
+
         Route::get('/auth/session', [AuthController::class, 'session']);
         Route::post('/auth/session/continue', [AuthController::class, 'continue']);
         Route::delete('/auth/session', [AuthController::class, 'logout']);

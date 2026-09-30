@@ -21,6 +21,16 @@ services:
     ports:
       - "8001:80"
 
+  scheduler:
+    image: zunera/php:8.3
+    command: ["php", "artisan", "schedule:work"]
+    restart: unless-stopped
+    volumes:
+      - ../:/var/www/html
+    depends_on:
+      app:
+        condition: service_started
+
   dbmysql:
     image: mysql:8.4
     environment:

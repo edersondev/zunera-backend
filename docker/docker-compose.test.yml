@@ -1,6 +1,11 @@
 name: zunera-backend
 
 services:
+  scheduler:
+    depends_on:
+      dbmysql_test:
+        condition: service_healthy
+
   dbmysql_test:
     image: mysql:8.4
     environment:

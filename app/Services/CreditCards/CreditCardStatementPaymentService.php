@@ -17,6 +17,7 @@ use App\Models\CreditCardStatement;
 use App\Models\CreditCardStatementPayment;
 use App\Models\FinancialAccount;
 use App\Models\User;
+use App\Services\Notifications\StatementNotificationProjector;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -29,6 +30,7 @@ final class CreditCardStatementPaymentService
         private readonly CreditCardObligationReconciler $reconciler,
         private readonly CreditCardPaymentAccountReconciler $accounts,
         private readonly BillingCycleCalculator $cycles,
+        private readonly StatementNotificationProjector $notifications,
     ) {}
 
     /** @return array<string, mixed> */
@@ -67,6 +69,7 @@ final class CreditCardStatementPaymentService
 
                 $this->accounts->reconcile(null, $payment);
                 $this->reconciler->syncStatement($locked, $this->businessDate());
+                $this->notifications->capture($locked);
 
                 return [
                     'target_type' => 'credit_card_statement_payment',
@@ -115,6 +118,7 @@ final class CreditCardStatementPaymentService
 
                 $this->accounts->reconcile($before, $locked);
                 $this->reconciler->syncStatement($statement, $this->businessDate());
+                $this->notifications->capture($statement);
 
                 return [
                     'target_type' => 'credit_card_statement_payment',
@@ -189,6 +193,7 @@ final class CreditCardStatementPaymentService
             $result = $this->idempotency->run($user->id, $idempotencyKey, $operation, $fingerprint, function () use ($locked, $statement, $mutate): array {
                 $mutate($locked);
                 $this->reconciler->syncStatement($statement, $this->businessDate());
+                $this->notifications->capture($statement);
 
                 return [
                     'target_type' => 'credit_card_statement_payment',

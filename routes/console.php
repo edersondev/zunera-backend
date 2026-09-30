@@ -37,3 +37,7 @@ Schedule::call(function (): void {
 Schedule::command('recurring:process-due')
     ->dailyAt('00:05')
     ->timezone(RecurringDateRange::BUSINESS_TIMEZONE);
+
+Schedule::command('notifications:reconcile')
+    ->everyMinute()
+    ->withoutOverlapping();

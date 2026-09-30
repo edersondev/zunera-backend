@@ -18,6 +18,8 @@ use App\Models\CreditCardInstallment;
 use App\Models\CreditCardPurchase;
 use App\Models\CreditCardStatement;
 use App\Models\User;
+use App\Services\Notifications\BudgetNotificationProjector;
+use App\Services\Notifications\StatementNotificationProjector;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
@@ -34,6 +36,7 @@ final class CreditCardCreditEventService
         private readonly CreditCardMutationIdempotencyService $idempotency,
         private readonly CreditCardObligationReconciler $reconciler,
         private readonly BillingCycleCalculator $cycles,
+        private readonly StatementNotificationProjector $notifications,
     ) {}
 
     /** @return array{event: CreditCardCreditEvent, card: CreditCard, applications: array<int, int>, replayed: bool} */
@@ -77,6 +80,12 @@ final class CreditCardCreditEventService
 
                 $affected = $this->applyEvent($event, $card, $data->eventDate);
                 $this->reconciler->refreshCardStatements($card, $this->businessDate());
+                foreach (array_keys($affected) as $statementId) {
+                    $this->notifications->capture(CreditCardStatement::query()->findOrFail((int) $statementId));
+                }
+                foreach (CreditCardInstallment::query()->where('credit_card_purchase_id', $locked->id)->distinct()->pluck('recognition_date') as $date) {
+                    app(BudgetNotificationProjector::class)->captureDate((int) $user->id, (string) $date);
+                }
 
                 return [
                     'target_type' => 'credit_event',

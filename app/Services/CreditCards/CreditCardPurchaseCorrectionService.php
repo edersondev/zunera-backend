@@ -16,6 +16,8 @@ use App\Models\CreditCardInstallment;
 use App\Models\CreditCardPurchase;
 use App\Models\CreditCardStatement;
 use App\Models\User;
+use App\Services\Notifications\BudgetNotificationProjector;
+use App\Services\Notifications\StatementNotificationProjector;
 use Carbon\CarbonImmutable;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -34,6 +36,7 @@ final class CreditCardPurchaseCorrectionService
         private readonly CreditCardObligationReconciler $reconciler,
         private readonly BillingCycleCalculator $cycles,
         private readonly InstallmentAllocator $allocator,
+        private readonly StatementNotificationProjector $notifications,
     ) {}
 
     /** @return array<string, mixed> */
@@ -81,6 +84,9 @@ final class CreditCardPurchaseCorrectionService
                     ->where('credit_card_purchase_id', $locked->id)
                     ->pluck('credit_card_statement_id')
                     ->all();
+                $previousRecognitionDates = CreditCardInstallment::query()
+                    ->where('credit_card_purchase_id', $locked->id)
+                    ->pluck('recognition_date')->all();
 
                 $locked->fill(array_filter([
                     'credit_card_id' => $data->has('card_id') ? $card->id : null,
@@ -115,7 +121,24 @@ final class CreditCardPurchaseCorrectionService
                 }
 
                 $this->reconciler->refreshCardStatements($card, $this->businessDate());
+                $affectedStatementIds = array_unique(array_merge(
+                    $previousStatementIds,
+                    CreditCardInstallment::query()->where('credit_card_purchase_id', $locked->id)->pluck('credit_card_statement_id')->all(),
+                ));
                 $this->pruneEmptyStatements($previousStatementIds);
+                foreach ($affectedStatementIds as $statementId) {
+                    $statement = CreditCardStatement::query()->find($statementId);
+                    if ($statement === null) {
+                        $this->notifications->captureMissing((int) $user->id, (int) $statementId);
+                    } else {
+                        $this->notifications->capture($statement);
+                    }
+                }
+                $recognitionDates = CreditCardInstallment::query()->where('credit_card_purchase_id', $locked->id)
+                    ->pluck('recognition_date')->all();
+                foreach (array_unique(array_merge($previousRecognitionDates, $recognitionDates)) as $date) {
+                    app(BudgetNotificationProjector::class)->captureDate((int) $user->id, (string) $date);
+                }
                 $fresh = $locked->refresh();
 
                 return [
