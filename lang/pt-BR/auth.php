@@ -7,6 +7,8 @@ return [
     'session_expired' => 'Sua sessão expirou.',
     'recovery_sent' => 'Se existir uma conta para este e-mail, enviaremos instruções de recuperação.',
     'password_changed' => 'Senha alterada. Você já pode entrar com sua nova senha.',
+    'current_password_invalid' => 'A senha atual está incorreta.',
+    'password_change_throttled' => 'Muitas tentativas de senha. Tente novamente mais tarde.',
     'password_safety_unavailable' => 'A validação de segurança da senha está temporariamente indisponível.',
     'recovery_link_expired' => 'Este link de recuperação expirou.',
     'recovery_link_invalid' => 'Este link de recuperação é inválido.',

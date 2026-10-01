@@ -3,6 +3,7 @@
 use App\Exceptions\AuthenticationException as ZuneraAuthenticationException;
 use App\Exceptions\CreditCards\CreditCardStateException;
 use App\Exceptions\LoginThrottledException;
+use App\Exceptions\ProfilePasswordThrottledException;
 use App\Http\Middleware\EnforceSessionLifetime;
 use App\Http\Middleware\SetRequestLocale;
 use Illuminate\Auth\AuthenticationException;
@@ -54,6 +55,12 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->render(function (LoginThrottledException $exception, Request $request) {
             return response()
                 ->json(['message' => __('auth.throttled'), 'code' => 'too_many_attempts'], Response::HTTP_TOO_MANY_REQUESTS)
+                ->withHeaders(['Retry-After' => (string) $exception->retryAfter]);
+        });
+
+        $exceptions->render(function (ProfilePasswordThrottledException $exception, Request $request) {
+            return response()
+                ->json(['message' => $exception->getMessage(), 'code' => 'too_many_attempts'], Response::HTTP_TOO_MANY_REQUESTS)
                 ->withHeaders(['Retry-After' => (string) $exception->retryAfter]);
         });
 
