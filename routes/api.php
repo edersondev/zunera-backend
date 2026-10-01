@@ -19,6 +19,7 @@ use App\Http\Controllers\Api\V1\FinancialHistoryController;
 use App\Http\Controllers\Api\V1\FinancialReportController;
 use App\Http\Controllers\Api\V1\NotificationController;
 use App\Http\Controllers\Api\V1\NotificationPreferenceController;
+use App\Http\Controllers\Api\V1\ProfileController;
 use App\Http\Controllers\Api\V1\RecurringTransactionController;
 use App\Http\Controllers\Api\V1\TransactionController;
 use App\Http\Controllers\Api\V1\TransferController;
@@ -43,6 +44,8 @@ Route::prefix('v1')->group(function (): void {
         Route::get('/auth/session', [AuthController::class, 'session']);
         Route::post('/auth/session/continue', [AuthController::class, 'continue']);
         Route::delete('/auth/session', [AuthController::class, 'logout']);
+        Route::patch('/auth/profile', [ProfileController::class, 'update']);
+        Route::patch('/auth/password', [ProfileController::class, 'changePassword']);
 
         Route::get('/financial-accounts', [FinancialAccountController::class, 'index']);
         Route::post('/financial-accounts', [FinancialAccountController::class, 'store']);

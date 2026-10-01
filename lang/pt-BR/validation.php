@@ -13,6 +13,7 @@ return [
     'password_compromised' => 'Esta senha apareceu em um vazamento de dados.',
     'attributes' => [
         'name' => 'nome completo',
+        'current_password' => 'senha atual',
         'email' => 'endereço de e-mail',
         'password' => 'senha',
         'password_confirmation' => 'confirmação da senha',

@@ -13,6 +13,7 @@ return [
     'password_compromised' => 'The password has appeared in a data breach.',
     'attributes' => [
         'name' => 'full name',
+        'current_password' => 'current password',
         'email' => 'email address',
         'password' => 'password',
         'password_confirmation' => 'password confirmation',
