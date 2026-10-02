@@ -66,6 +66,19 @@ final class RegistrationTest extends TestCase
     }
 
     #[Test]
+    public function it_rejects_seven_character_and_weak_passwords(): void
+    {
+        foreach (['A9!bcDe', 'qwerty12345'] as $password) {
+            $this->fromFrontend()->postJson('/api/v1/auth/register', [
+                'name' => 'Ana da Silva',
+                'email' => 'person@example.com',
+                'password' => $password,
+                'password_confirmation' => $password,
+            ])->assertUnprocessable()->assertJsonValidationErrors('password');
+        }
+    }
+
+    #[Test]
     public function it_rejects_missing_short_and_oversized_names(): void
     {
         foreach ([null, 'A', str_repeat('a', 256)] as $name) {

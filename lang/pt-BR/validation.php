@@ -9,6 +9,7 @@ return [
     'string' => 'O campo :attribute deve ser um texto.',
     'unique' => 'Este :attribute já está em uso.',
     'invalid' => 'Os dados informados são inválidos.',
+    'password_weak' => 'Escolha uma senha mais forte.',
     'password_common' => 'A senha é muito comum.',
     'password_compromised' => 'Esta senha apareceu em um vazamento de dados.',
     'attributes' => [

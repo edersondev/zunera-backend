@@ -11,6 +11,6 @@ final class PasswordRules
      */
     public function confirmed(): array
     {
-        return ['required', 'string', 'min:15', 'max:64', 'confirmed', new SafePasswordRule];
+        return ['bail', 'required', 'string', 'min:8', 'max:64', 'confirmed', new StrongPasswordRule, new SafePasswordRule];
     }
 }
