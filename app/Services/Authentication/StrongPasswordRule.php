@@ -10,11 +10,15 @@ use ZxcvbnPhp\Zxcvbn;
 
 final class StrongPasswordRule implements ValidationRule
 {
-    public function __construct(private readonly Zxcvbn $scorer = new Zxcvbn) {}
+    /** @param array<int, string> $userInputs */
+    public function __construct(
+        private readonly array $userInputs = [],
+        private readonly Zxcvbn $scorer = new Zxcvbn,
+    ) {}
 
     public function validate(string $attribute, mixed $value, Closure $fail): void
     {
-        if ($this->scorer->passwordStrength((string) $value)['score'] < 3) {
+        if ($this->scorer->passwordStrength((string) $value, $this->userInputs)['score'] < 3) {
             $fail(__('validation.password_weak'));
         }
     }
