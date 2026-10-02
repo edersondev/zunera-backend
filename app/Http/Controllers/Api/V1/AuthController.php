@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Auth\ConfirmAccountActivationRequest;
 use App\Http\Requests\Auth\LoginRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\RequestPasswordRecoveryRequest;
+use App\Http\Requests\Auth\ResendAccountActivationRequest;
 use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Resources\Auth\AuthenticatedSessionResource;
+use App\Services\Authentication\AccountActivationService;
 use App\Services\Authentication\AuthenticationService;
 use App\Services\Authentication\PasswordRecoveryService;
 use App\Services\Authentication\PasswordResetService;
@@ -21,9 +24,30 @@ final class AuthController extends Controller
 {
     public function register(RegisterRequest $request, AuthenticationService $auth): JsonResponse
     {
-        return (new AuthenticatedSessionResource($auth->register($request->toData(), $request)))
-            ->response()
-            ->setStatusCode(Response::HTTP_CREATED);
+        $auth->register($request->toData(), $request);
+
+        return response()->json([
+            'message' => __('auth.activation_pending'),
+            'activation_required' => true,
+        ], Response::HTTP_CREATED);
+    }
+
+    public function confirmActivation(ConfirmAccountActivationRequest $request, AccountActivationService $activation): JsonResponse
+    {
+        $activation->confirm((string) $request->validated('email'), (string) $request->validated('token'));
+
+        return response()->json(['message' => __('auth.activation_complete')]);
+    }
+
+    public function resendActivation(ResendAccountActivationRequest $request, AccountActivationService $activation): JsonResponse
+    {
+        $activation->resend(
+            (string) $request->validated('email'),
+            (string) $request->ip(),
+            app()->getLocale(),
+        );
+
+        return response()->json(['message' => __('auth.activation_sent')], Response::HTTP_ACCEPTED);
     }
 
     public function login(LoginRequest $request, AuthenticationService $auth): JsonResponse

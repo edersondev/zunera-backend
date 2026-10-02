@@ -4,14 +4,39 @@ declare(strict_types=1);
 
 namespace Tests\Unit\Authentication;
 
+use App\Models\User;
+use App\Notifications\Auth\AccountActivationNotification;
 use App\Notifications\Auth\PasswordChangedNotification;
 use App\Notifications\Auth\ResetPasswordNotification;
+use Illuminate\Support\Facades\App;
 use PHPUnit\Framework\Attributes\Test;
 use Symfony\Component\Mime\Email;
 use Tests\TestCase;
 
 final class AuthenticationNotificationTest extends TestCase
 {
+    #[Test]
+    public function activation_notification_has_localized_copy_link_and_tracking_header(): void
+    {
+        $user = User::factory()->make(['name' => 'Ana', 'email' => 'ana@example.com']);
+        $notification = new AccountActivationNotification(str_repeat('a', 64));
+
+        App::setLocale('pt-BR');
+        $message = $notification->toMail($user);
+        $this->assertSame('Ative sua conta Zunera', $message->subject);
+        $this->assertStringContainsString('/activate-account?email=ana%40example.com&token=', $message->actionUrl);
+        $this->assertStringContainsString('24 horas', implode(' ', $message->outroLines));
+
+        App::setLocale('en');
+        $this->assertSame('Activate your Zunera account', $notification->toMail($user)->subject);
+
+        $email = new Email;
+        foreach ($message->callbacks as $callback) {
+            $callback($email);
+        }
+        $this->assertNotNull($email->getHeaders()->get('X-Zunera-Message-ID'));
+    }
+
     #[Test]
     public function reset_password_notification_uses_lowercase_uuid_message_id_header(): void
     {

@@ -6,12 +6,14 @@ namespace App\Services\Authentication;
 
 use App\Data\Authentication\LoginData;
 use App\Data\Authentication\RegisterData;
+use App\Exceptions\AuthenticationException as ZuneraAuthenticationException;
 use App\Exceptions\LoginThrottledException;
 use App\Models\User;
 use Carbon\CarbonImmutable;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\App;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
@@ -22,31 +24,34 @@ final class AuthenticationService
     public function __construct(
         private readonly ProgressiveLoginLimiter $loginLimiter,
         private readonly AuthenticationAudit $audit,
+        private readonly AccountActivationService $activation,
     ) {}
 
-    /**
-     * @return array{user: User, idle_expires_at: CarbonImmutable, absolute_expires_at: CarbonImmutable}
-     */
-    public function register(RegisterData $data, Request $request): array
+    public function register(RegisterData $data, Request $request): void
     {
         try {
-            $user = DB::transaction(function () use ($data): User {
-                return User::query()->create([
+            $user = DB::transaction(function () use ($data, $request): User {
+                $user = User::query()->create([
                     'name' => $data->name,
                     'email' => $data->email,
                     'password' => Hash::make($data->password),
                 ]);
+
+                $this->activation->sendInitial($user, App::getLocale(), (string) $request->ip());
+
+                return $user;
             });
-        } catch (QueryException) {
+        } catch (QueryException $exception) {
+            if (! in_array((string) $exception->getCode(), ['23000', '23505'], true)) {
+                throw $exception;
+            }
+
             throw ValidationException::withMessages([
                 'email' => [__('validation.unique', ['attribute' => __('validation.attributes.email')])],
             ]);
         }
 
-        $this->startSession($user, $request);
         $this->audit->record('registered', ['user_id' => $user->id]);
-
-        return $this->sessionPayload($user, $request);
     }
 
     /**
@@ -69,6 +74,13 @@ final class AuthenticationService
         }
 
         $this->loginLimiter->clear($data->email, $data->ipAddress);
+
+        if ($user->email_verified_at === null) {
+            $this->audit->record('inactive_login_denied', ['user_id' => $user->id]);
+
+            throw ZuneraAuthenticationException::accountInactive();
+        }
+
         $this->startSession($user, $request);
         $this->audit->record('login', ['user_id' => $user->id]);
 

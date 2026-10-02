@@ -28,11 +28,13 @@ use Illuminate\Support\Facades\Route;
 Route::prefix('v1')->group(function (): void {
     Route::post('/auth/register', [AuthController::class, 'register'])->middleware('guest');
     Route::post('/auth/login', [AuthController::class, 'login'])->middleware('guest');
+    Route::post('/auth/activation/confirm', [AuthController::class, 'confirmActivation']);
+    Route::post('/auth/activation/resend', [AuthController::class, 'resendActivation']);
     Route::post('/auth/password/recovery', [AuthController::class, 'requestRecovery']);
     Route::post('/auth/password/reset', [AuthController::class, 'resetPassword']);
     Route::post('/integrations/auth-mail/delivery-events', [AuthMailDeliveryEventController::class, 'store']);
 
-    Route::middleware(['auth:sanctum', 'session.lifetime'])->group(function (): void {
+    Route::middleware(['auth:sanctum', 'account.active', 'session.lifetime'])->group(function (): void {
         Route::get('/notifications', [NotificationController::class, 'index']);
         Route::get('/notifications/summary', [NotificationController::class, 'summary']);
         Route::post('/notifications/read-all', [NotificationController::class, 'readAll']);

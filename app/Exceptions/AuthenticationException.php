@@ -28,6 +28,21 @@ final class AuthenticationException extends RuntimeException
         return new self('auth.recovery_link_invalid', 'recovery_link_invalid', 422);
     }
 
+    public static function accountInactive(): self
+    {
+        return new self('auth.account_inactive', 'account_inactive', 403);
+    }
+
+    public static function activationLinkExpired(): self
+    {
+        return new self('auth.activation_link_expired', 'activation_link_expired', 422);
+    }
+
+    public static function activationLinkInvalid(): self
+    {
+        return new self('auth.activation_link_invalid', 'activation_link_invalid', 422);
+    }
+
     public function errorCode(): string
     {
         return $this->errorCode;

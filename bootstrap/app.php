@@ -5,6 +5,7 @@ use App\Exceptions\CreditCards\CreditCardStateException;
 use App\Exceptions\LoginThrottledException;
 use App\Exceptions\ProfilePasswordThrottledException;
 use App\Http\Middleware\EnforceSessionLifetime;
+use App\Http\Middleware\EnsureAccountActive;
 use App\Http\Middleware\SetRequestLocale;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
@@ -26,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->statefulApi();
         $middleware->alias([
             'session.lifetime' => EnforceSessionLifetime::class,
+            'account.active' => EnsureAccountActive::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

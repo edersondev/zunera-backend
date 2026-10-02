@@ -31,6 +31,18 @@ services:
       app:
         condition: service_started
 
+  auth-mail-worker:
+    image: zunera/php:8.3
+    command: ["php", "artisan", "queue:work", "database", "--queue=auth-mail", "--sleep=3", "--tries=3", "--timeout=60"]
+    restart: unless-stopped
+    volumes:
+      - ../:/var/www/html
+    depends_on:
+      dbmysql:
+        condition: service_healthy
+      mailpit:
+        condition: service_started
+
   dbmysql:
     image: mysql:8.4
     environment:
