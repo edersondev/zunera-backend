@@ -32,10 +32,15 @@ final class RegisterRequest extends FormRequest
      */
     public function rules(PasswordRules $passwordRules): array
     {
+        $nameParts = preg_split('/\s+/u', trim((string) $this->input('name'))) ?: [];
+        $email = (string) $this->input('email');
+        $emailLocalPart = explode('@', $email)[0];
+        $userInputs = array_values(array_filter([...$nameParts, $email, $emailLocalPart]));
+
         return [
             'name' => ['required', 'string', 'min:2', 'max:255'],
             'email' => ['required', 'email:rfc', 'max:255', 'unique:users,email'],
-            'password' => $passwordRules->confirmed(),
+            'password' => $passwordRules->confirmed($userInputs),
         ];
     }
 

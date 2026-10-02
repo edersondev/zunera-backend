@@ -9,6 +9,7 @@ return [
     'string' => 'The :attribute must be a string.',
     'unique' => 'The :attribute has already been taken.',
     'invalid' => 'The given data was invalid.',
+    'password_weak' => 'Choose a stronger password.',
     'password_common' => 'The password is too common.',
     'password_compromised' => 'The password has appeared in a data breach.',
     'attributes' => [
