@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Tests\Feature\Auth;
 
 use App\Models\User;
+use App\Notifications\Auth\AccountActivationNotification;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Notification;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\TestCase;
 
@@ -14,8 +16,10 @@ final class RegistrationTest extends TestCase
     use RefreshDatabase;
 
     #[Test]
-    public function it_registers_with_trimmed_name_and_returns_authenticated_session(): void
+    public function it_registers_an_inactive_account_without_a_session_and_queues_activation(): void
     {
+        Notification::fake();
+
         $response = $this->fromFrontend()->postJson('/api/v1/auth/register', [
             'name' => '  Ana da Silva  ',
             'email' => ' NewUser@Example.COM ',
@@ -24,19 +28,17 @@ final class RegistrationTest extends TestCase
         ]);
 
         $response->assertCreated()
-            ->assertJsonPath('data.user.name', 'Ana da Silva')
-            ->assertJsonPath('data.user.email', 'newuser@example.com')
-            ->assertJsonStructure([
-                'data' => [
-                    'user' => ['id', 'name', 'email'],
-                    'session' => ['idle_expires_at', 'absolute_expires_at'],
-                ],
-            ]);
+            ->assertJsonPath('activation_required', true)
+            ->assertJsonMissingPath('data.session');
 
         $this->assertDatabaseHas('users', [
             'email' => 'newuser@example.com',
             'name' => 'Ana da Silva',
+            'email_verified_at' => null,
         ]);
+
+        Notification::assertSentTo(User::query()->where('email', 'newuser@example.com')->firstOrFail(), AccountActivationNotification::class);
+        $this->fromFrontend()->getJson('/api/v1/auth/session')->assertUnauthorized();
     }
 
     #[Test]
