@@ -1,5 +1,13 @@
 <?php
 
+$appHost = parse_url((string) env('APP_URL', ''), PHP_URL_HOST);
+$mailDomain = is_string($appHost)
+    && str_contains($appHost, '.')
+    && filter_var($appHost, FILTER_VALIDATE_DOMAIN, FILTER_FLAG_HOSTNAME) !== false
+    && filter_var($appHost, FILTER_VALIDATE_IP) === false
+        ? $appHost
+        : null;
+
 return [
 
     /*
@@ -111,7 +119,7 @@ return [
     */
 
     'from' => [
-        'address' => env('MAIL_FROM_ADDRESS', 'hello@example.com'),
+        'address' => env('MAIL_FROM_ADDRESS') ?: ($mailDomain ? 'no-reply@'.$mailDomain : 'hello@example.com'),
         'name' => env('MAIL_FROM_NAME', env('APP_NAME', 'Laravel')),
     ],
 
