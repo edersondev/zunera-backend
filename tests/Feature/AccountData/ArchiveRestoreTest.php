@@ -79,8 +79,12 @@ final class ArchiveRestoreTest extends TestCase
             'financial_account_id' => $account->id, 'created_at' => now(), 'updated_at' => now(),
         ]);
         DB::table('financial_goal_activities')->insert([
-            'financial_goal_id' => $goalId, 'user_id' => $user->id, 'type' => 'created',
+            'financial_goal_id' => $goalId, 'user_id' => $user->id, 'type' => 'account_changed',
             'financial_account_id_at_time' => $account->id,
+            'details' => json_encode([
+                'before' => ['financial_account_id' => $account->id],
+                'changes' => ['financial_account_id' => $destination->id],
+            ]),
             'occurred_at' => now(), 'business_date' => today()->toDateString(),
             'created_at' => now(), 'updated_at' => now(),
         ]);
@@ -116,6 +120,10 @@ final class ArchiveRestoreTest extends TestCase
         $this->assertEquals($restoredOccurrence->id, $restoredPurchase->recurring_card_occurrence_id);
         $this->assertEquals($restoredAccount->id, $restoredGoal->financial_account_id);
         $this->assertEquals($restoredAccount->id, DB::table('financial_goal_activities')->where('user_id', $user->id)->value('financial_account_id_at_time'));
+        $activityDetails = json_decode(DB::table('financial_goal_activities')->where('user_id', $user->id)->value('details'), true);
+        $restoredDestination = DB::table('financial_accounts')->where('user_id', $user->id)->where('name', $destination->name)->first();
+        $this->assertEquals($restoredAccount->id, $activityDetails['before']['financial_account_id']);
+        $this->assertEquals($restoredDestination->id, $activityDetails['changes']['financial_account_id']);
         $this->assertDatabaseCount('budget_category_plans', 1);
         $this->assertDatabaseCount('credit_card_credit_applications', 1);
         $this->assertDatabaseHas('notification_projection_facts', ['user_id' => $user->id, 'source_kind' => 'credit_card_statement']);
@@ -183,6 +191,32 @@ final class ArchiveRestoreTest extends TestCase
         $current = FinancialAccount::factory()->create(['user_id' => $user->id]);
         DB::table('financial_data_archive_records')->where('financial_data_archive_id', $archiveId)
             ->where('record_type', 'financial_accounts')->update(['payload' => json_encode(['id' => $account->id, 'user_id' => 999])]);
+
+        $this->postJson("/api/v1/account-data/archives/{$archiveId}/restore", [])
+            ->assertConflict()->assertJsonPath('code', 'archive_restore_unavailable');
+        $this->assertDatabaseHas('financial_accounts', ['id' => $current->id]);
+        $this->assertDatabaseCount('financial_data_archives', 1);
+    }
+
+    #[Test]
+    public function snapshot_missing_a_defaulted_column_cannot_replace_current_data(): void
+    {
+        $user = User::factory()->create();
+        $account = FinancialAccount::factory()->create(['user_id' => $user->id]);
+        $goalId = DB::table('financial_goals')->insertGetId([
+            'user_id' => $user->id, 'name' => 'Paused goal', 'target_centavos' => 5000,
+            'financial_account_id' => $account->id, 'status' => 'paused',
+            'created_at' => now(), 'updated_at' => now(),
+        ]);
+        $this->actingAs($user);
+        $archiveId = (int) $this->postJson('/api/v1/account-data/archive', [])->assertCreated()->json('data.id');
+        $current = FinancialAccount::factory()->create(['user_id' => $user->id]);
+        $record = DB::table('financial_data_archive_records')->where('financial_data_archive_id', $archiveId)
+            ->where('record_type', 'financial_goals')->where('source_id', $goalId)->first();
+        $payload = json_decode($record->payload, true);
+        unset($payload['status']);
+        DB::table('financial_data_archive_records')->where('id', $record->id)
+            ->update(['payload' => json_encode($payload)]);
 
         $this->postJson("/api/v1/account-data/archives/{$archiveId}/restore", [])
             ->assertConflict()->assertJsonPath('code', 'archive_restore_unavailable');

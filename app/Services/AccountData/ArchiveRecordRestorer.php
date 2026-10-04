@@ -90,6 +90,9 @@ final class ArchiveRecordRestorer
                     foreach ($records as $record) {
                         $oldId = (int) $record->source_id;
                         $data = $this->payload((string) $record->payload, $oldId, $table, $userId);
+                        if (array_diff($columns, array_keys($data)) !== []) {
+                            throw $this->unavailable();
+                        }
 
                         if ($table === 'categories' && $data['origin'] === 'system') {
                             $currentId = DB::table('categories')->where('origin', 'system')
@@ -117,6 +120,9 @@ final class ArchiveRecordRestorer
                         }
                         if ($table === 'financial_goal_activities' && isset($data['financial_account_id_at_time'])) {
                             $data['financial_account_id_at_time'] = $ids['financial_accounts'][(int) $data['financial_account_id_at_time']] ?? null;
+                        }
+                        if ($table === 'financial_goal_activities' && $data['details'] !== null) {
+                            $data['details'] = $this->remapGoalActivityDetails($data['details'], $ids);
                         }
 
                         foreach (self::REFERENCES[$table] ?? [] as $field => $target) {
@@ -176,6 +182,34 @@ final class ArchiveRecordRestorer
         }
 
         return $ids[$table][$oldId];
+    }
+
+    /** @param array<string, array<int, int>> $ids */
+    private function remapGoalActivityDetails(mixed $json, array $ids): string
+    {
+        if (! is_string($json)) {
+            throw $this->unavailable();
+        }
+
+        try {
+            $details = json_decode($json, true, 512, JSON_THROW_ON_ERROR);
+            if (! is_array($details)) {
+                throw $this->unavailable();
+            }
+            foreach (['before', 'changes'] as $section) {
+                if (isset($details[$section]['financial_account_id'])) {
+                    $oldAccountId = $details[$section]['financial_account_id'];
+                    if (! is_int($oldAccountId)) {
+                        throw $this->unavailable();
+                    }
+                    $details[$section]['financial_account_id'] = $ids['financial_accounts'][$oldAccountId] ?? null;
+                }
+            }
+
+            return json_encode($details, JSON_THROW_ON_ERROR);
+        } catch (JsonException) {
+            throw $this->unavailable();
+        }
     }
 
     private function unavailable(): ArchiveRestoreException
