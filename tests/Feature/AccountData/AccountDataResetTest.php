@@ -19,7 +19,9 @@ use App\Models\RecurringTransaction;
 use App\Models\Transaction;
 use App\Models\Transfer;
 use App\Models\User;
+use Illuminate\Cache\RateLimiter as CacheRateLimiter;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\RateLimiter;
 use PHPUnit\Framework\Attributes\Test;
@@ -147,6 +149,33 @@ final class AccountDataResetTest extends TestCase
             ->assertTooManyRequests()->assertHeader('Retry-After');
         $this->assertDatabaseHas('financial_accounts', ['id' => $account->id]);
         RateLimiter::clear($key);
+    }
+
+    #[Test]
+    public function deletion_rate_limit_persists_with_database_cache(): void
+    {
+        $user = User::factory()->create();
+        $account = FinancialAccount::factory()->create(['user_id' => $user->id]);
+        $key = 'auth:profile-password:'.$user->id;
+        $originalLimiter = RateLimiter::getFacadeRoot();
+        RateLimiter::swap(new CacheRateLimiter(Cache::store('database')));
+
+        try {
+            $this->actingAs($user);
+
+            for ($attempt = 1; $attempt <= 5; $attempt++) {
+                $this->deleteJson('/api/v1/account-data', ['current_password' => 'wrong'])
+                    ->assertUnprocessable()->assertJsonValidationErrors('current_password');
+                $this->assertSame($attempt, RateLimiter::attempts($key));
+            }
+
+            $this->deleteJson('/api/v1/account-data', ['current_password' => 'password'])
+                ->assertTooManyRequests()->assertHeader('Retry-After');
+            $this->assertDatabaseHas('financial_accounts', ['id' => $account->id]);
+        } finally {
+            RateLimiter::clear($key);
+            RateLimiter::swap($originalLimiter);
+        }
     }
 
     #[Test]

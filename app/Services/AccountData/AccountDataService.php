@@ -91,18 +91,24 @@ final class AccountDataService
             throw new ProfilePasswordThrottledException(RateLimiter::availableIn($key));
         }
 
-        DB::transaction(function () use ($user, $currentPassword, $key): void {
+        $passwordValid = DB::transaction(function () use ($user, $currentPassword): bool {
             $locked = $this->lockUser($user);
             if (! Hash::check($currentPassword, $locked->password)) {
-                RateLimiter::hit($key, 900);
-                throw ValidationException::withMessages([
-                    'current_password' => [__('auth.current_password_invalid')],
-                ]);
+                return false;
             }
 
             $this->clearLiveData((int) $user->id);
             DB::table('financial_data_archives')->where('user_id', $user->id)->delete();
+
+            return true;
         }, 3);
+
+        if (! $passwordValid) {
+            RateLimiter::hit($key, 900);
+            throw ValidationException::withMessages([
+                'current_password' => [__('auth.current_password_invalid')],
+            ]);
+        }
 
         RateLimiter::clear($key);
         $this->audit->record('financial_data_deleted', ['user_id' => $user->id]);
