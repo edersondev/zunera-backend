@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Services\AccountData;
 
+use App\Exceptions\AccountData\ArchiveRestoreException;
 use App\Exceptions\ProfilePasswordThrottledException;
 use App\Models\User;
 use App\Services\Authentication\AuthenticationAudit;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\QueryException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\RateLimiter;
@@ -41,45 +43,62 @@ final class AccountDataService
         'financial_goal_mutation_requests',
     ];
 
-    public function __construct(private readonly AuthenticationAudit $audit) {}
+    public function __construct(
+        private readonly AuthenticationAudit $audit,
+        private readonly ArchiveRecordRestorer $restorer,
+        private readonly ArchiveNotificationProjector $notifications,
+    ) {}
 
     /** @return array{id: int, created_at: string, record_count: int} */
     public function archive(User $user): array
     {
         $result = DB::transaction(function () use ($user): array {
             $this->lockUser($user);
-            $archiveId = (int) DB::table('financial_data_archives')->insertGetId([
-                'user_id' => $user->id,
-                'record_count' => 0,
-                'created_at' => now(),
-            ]);
-            $recordCount = 0;
-
-            foreach (self::RECORD_TYPES as $table) {
-                $this->ownedRows($table, (int) $user->id)
-                    ->orderBy('id')
-                    ->chunkById(100, function ($rows) use ($archiveId, $table, &$recordCount): void {
-                        $records = [];
-                        foreach ($rows as $row) {
-                            $records[] = [
-                                'financial_data_archive_id' => $archiveId,
-                                'record_type' => $table,
-                                'source_id' => $row->id,
-                                'payload' => json_encode((array) $row, JSON_THROW_ON_ERROR),
-                            ];
-                        }
-                        DB::table('financial_data_archive_records')->insert($records);
-                        $recordCount += count($records);
-                    });
-            }
-
-            DB::table('financial_data_archives')->where('id', $archiveId)->update(['record_count' => $recordCount]);
+            $archiveId = $this->snapshotLiveData((int) $user->id);
             $this->clearLiveData((int) $user->id);
 
             return $this->archiveMetadata($archiveId);
         }, 3);
 
         $this->audit->record('financial_data_archived', ['user_id' => $user->id, 'archive_id' => $result['id']]);
+
+        return $result;
+    }
+
+    /** @return array{restored_archive_id: int, restored_record_count: int, previous_archive_id: ?int} */
+    public function restore(User $user, int $archiveId): array
+    {
+        $result = DB::transaction(function () use ($user, $archiveId): array {
+            $this->lockUser($user);
+            $archive = DB::table('financial_data_archives')
+                ->where('user_id', $user->id)->lockForUpdate()->find($archiveId);
+            if ($archive === null) {
+                throw new NotFoundHttpException('Archive not found.');
+            }
+
+            $this->restorer->verify($archiveId, (int) $archive->record_count);
+            $previousArchiveId = $this->hasLiveData((int) $user->id)
+                ? $this->snapshotLiveData((int) $user->id) : null;
+            $this->clearLiveData((int) $user->id);
+            try {
+                $restored = $this->restorer->restore((int) $user->id, $archiveId);
+                $this->notifications->capture((int) $user->id, $restored);
+            } catch (QueryException $exception) {
+                throw new ArchiveRestoreException('This archive cannot be restored safely. Current data was left unchanged.', previous: $exception);
+            }
+
+            return [
+                'restored_archive_id' => $archiveId,
+                'restored_record_count' => (int) $archive->record_count,
+                'previous_archive_id' => $previousArchiveId,
+            ];
+        }, 3);
+
+        $this->audit->record('financial_data_restored', [
+            'user_id' => $user->id,
+            'archive_id' => $archiveId,
+            'previous_archive_id' => $result['previous_archive_id'],
+        ]);
 
         return $result;
     }
@@ -163,6 +182,52 @@ final class AccountDataService
     private function lockUser(User $user): User
     {
         return User::query()->lockForUpdate()->findOrFail($user->id);
+    }
+
+    private function hasLiveData(int $userId): bool
+    {
+        foreach (self::RECORD_TYPES as $table) {
+            if ($table === 'categories') {
+                if (DB::table($table)->where('user_id', $userId)->exists()) {
+                    return true;
+                }
+            } elseif ($this->ownedRows($table, $userId)->exists()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private function snapshotLiveData(int $userId): int
+    {
+        $archiveId = (int) DB::table('financial_data_archives')->insertGetId([
+            'user_id' => $userId,
+            'record_count' => 0,
+            'created_at' => now(),
+        ]);
+        $recordCount = 0;
+
+        foreach (self::RECORD_TYPES as $table) {
+            $this->ownedRows($table, $userId)->orderBy('id')
+                ->chunkById(100, function ($rows) use ($archiveId, $table, &$recordCount): void {
+                    $records = [];
+                    foreach ($rows as $row) {
+                        $records[] = [
+                            'financial_data_archive_id' => $archiveId,
+                            'record_type' => $table,
+                            'source_id' => $row->id,
+                            'payload' => json_encode((array) $row, JSON_THROW_ON_ERROR),
+                        ];
+                    }
+                    DB::table('financial_data_archive_records')->insert($records);
+                    $recordCount += count($records);
+                });
+        }
+
+        DB::table('financial_data_archives')->where('id', $archiveId)->update(['record_count' => $recordCount]);
+
+        return $archiveId;
     }
 
     private function ownedRows(string $table, int $userId): Builder

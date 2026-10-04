@@ -4,10 +4,12 @@ declare(strict_types=1);
 
 namespace App\Http\Controllers\Api\V1;
 
+use App\Exceptions\AccountData\ArchiveRestoreException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\AccountData\ArchiveAccountDataRequest;
 use App\Http\Requests\AccountData\DeleteAccountDataRequest;
 use App\Http\Requests\AccountData\ListArchiveRecordsRequest;
+use App\Http\Requests\AccountData\RestoreAccountDataRequest;
 use App\Services\AccountData\AccountDataService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -30,6 +32,18 @@ final class AccountDataController extends Controller
     public function archives(Request $request, AccountDataService $service): JsonResponse
     {
         return response()->json(['data' => $service->archives($request->user())]);
+    }
+
+    public function restore(RestoreAccountDataRequest $request, AccountDataService $service, int $archive_id): JsonResponse
+    {
+        try {
+            return response()->json(['data' => $service->restore($request->user(), $archive_id)]);
+        } catch (ArchiveRestoreException $exception) {
+            return response()->json([
+                'message' => $exception->getMessage(),
+                'code' => $exception->errorCode(),
+            ], Response::HTTP_CONFLICT);
+        }
     }
 
     public function records(ListArchiveRecordsRequest $request, AccountDataService $service, int $archive_id): JsonResponse

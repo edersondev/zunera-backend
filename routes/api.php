@@ -52,6 +52,7 @@ Route::prefix('v1')->group(function (): void {
         Route::post('/account-data/archive', [AccountDataController::class, 'archive']);
         Route::delete('/account-data', [AccountDataController::class, 'delete']);
         Route::get('/account-data/archives', [AccountDataController::class, 'archives']);
+        Route::post('/account-data/archives/{archive_id}/restore', [AccountDataController::class, 'restore'])->whereNumber('archive_id');
         Route::get('/account-data/archives/{archive_id}/records', [AccountDataController::class, 'records'])->whereNumber('archive_id');
 
         Route::get('/financial-accounts', [FinancialAccountController::class, 'index']);
