@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\V1\AccountDataController;
 use App\Http\Controllers\Api\V1\AuthController;
 use App\Http\Controllers\Api\V1\AuthMailDeliveryEventController;
 use App\Http\Controllers\Api\V1\BudgetController;
@@ -48,6 +49,10 @@ Route::prefix('v1')->group(function (): void {
         Route::delete('/auth/session', [AuthController::class, 'logout']);
         Route::patch('/auth/profile', [ProfileController::class, 'update']);
         Route::patch('/auth/password', [ProfileController::class, 'changePassword']);
+        Route::post('/account-data/archive', [AccountDataController::class, 'archive']);
+        Route::delete('/account-data', [AccountDataController::class, 'delete']);
+        Route::get('/account-data/archives', [AccountDataController::class, 'archives']);
+        Route::get('/account-data/archives/{archive_id}/records', [AccountDataController::class, 'records'])->whereNumber('archive_id');
 
         Route::get('/financial-accounts', [FinancialAccountController::class, 'index']);
         Route::post('/financial-accounts', [FinancialAccountController::class, 'store']);
