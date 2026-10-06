@@ -17,7 +17,7 @@ final class CategoryVisualOptions
     /** @return list<string> */
     public static function icons(): array
     {
-        return ['home', 'utensils', 'car', 'heart', 'book', 'gamepad', 'shopping_bag', 'receipt', 'landmark', 'circle', 'wallet', 'briefcase', 'chart', 'gift', 'refund'];
+        return ['home', 'utensils', 'car', 'heart', 'book', 'gamepad', 'shopping_bag', 'receipt', 'landmark', 'circle', 'wallet', 'briefcase', 'chart', 'gift', 'refund', 'bank', 'piggy_bank', 'credit_card', 'smartphone', 'cash', 'travel', 'subscription', 'utilities'];
     }
 
     public static function color(?string $color): string
