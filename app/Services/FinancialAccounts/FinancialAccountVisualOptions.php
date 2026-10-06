@@ -23,7 +23,7 @@ final class FinancialAccountVisualOptions
      */
     public static function icons(): array
     {
-        return ['bank', 'piggy_bank', 'wallet', 'chart', 'smartphone', 'circle'];
+        return ['bank', 'piggy_bank', 'wallet', 'chart', 'smartphone', 'circle', 'credit_card', 'cash', 'briefcase'];
     }
 
     public static function color(?string $color): string

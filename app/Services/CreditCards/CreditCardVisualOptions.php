@@ -19,7 +19,7 @@ final class CreditCardVisualOptions
     /** @return list<string> */
     public static function icons(): array
     {
-        return ['credit_card', 'bank', 'wallet', 'smartphone', 'circle'];
+        return ['credit_card', 'bank', 'wallet', 'smartphone', 'circle', 'shopping_bag', 'travel', 'subscription', 'gift'];
     }
 
     public static function color(?string $color): string
