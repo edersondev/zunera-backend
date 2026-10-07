@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Services\CreditCards;
 
+use App\Services\Appearance\VisualColorPalette;
+
 final class CreditCardVisualOptions
 {
     public const DEFAULT_COLOR = 'violet';
@@ -13,7 +15,7 @@ final class CreditCardVisualOptions
     /** @return list<string> */
     public static function colors(): array
     {
-        return ['teal', 'blue', 'violet', 'amber', 'rose', 'cyan'];
+        return VisualColorPalette::colors();
     }
 
     /** @return list<string> */

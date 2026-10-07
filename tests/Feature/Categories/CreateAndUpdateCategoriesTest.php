@@ -27,6 +27,24 @@ final class CreateAndUpdateCategoriesTest extends TestCase
     }
 
     #[Test]
+    public function category_accepts_new_palette_colors_on_create_and_update(): void
+    {
+        $this->signedInUser();
+
+        $categoryId = $this->postJson('/api/v1/categories', [
+            'name' => 'Palette category',
+            'classification' => 'expense',
+            'color' => 'green',
+        ])->assertCreated()->assertJsonPath('data.color', 'green')->json('data.id');
+
+        $this->patchJson("/api/v1/categories/{$categoryId}", ['color' => 'pink'])
+            ->assertOk()->assertJsonPath('data.color', 'pink');
+
+        $this->patchJson("/api/v1/categories/{$categoryId}", ['color' => 'gray'])
+            ->assertOk()->assertJsonPath('data.color', 'gray');
+    }
+
+    #[Test]
     public function duplicate_default_and_invalid_configurations_return_safe_feedback(): void
     {
         $this->seed(CategorySeeder::class);
@@ -34,7 +52,7 @@ final class CreateAndUpdateCategoriesTest extends TestCase
         Category::factory()->create(['user_id' => $user->id, 'name' => 'Pet care']);
         $this->postJson('/api/v1/categories', ['name' => ' PET   CARE ', 'classification' => 'expense'])->assertStatus(409)->assertJsonPath('code', 'category_name_conflict');
         $this->postJson('/api/v1/categories', ['name' => 'Food', 'classification' => 'expense'])->assertStatus(409)->assertJsonPath('code', 'category_system_default_conflict');
-        $this->postJson('/api/v1/categories', ['name' => ' ', 'classification' => 'transfer', 'color' => 'green'])->assertUnprocessable()->assertJsonValidationErrors(['name', 'classification', 'color']);
+        $this->postJson('/api/v1/categories', ['name' => ' ', 'classification' => 'transfer', 'color' => 'chartreuse'])->assertUnprocessable()->assertJsonValidationErrors(['name', 'classification', 'color']);
     }
 
     #[Test]

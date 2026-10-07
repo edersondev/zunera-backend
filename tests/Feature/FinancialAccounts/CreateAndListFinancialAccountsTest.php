@@ -32,7 +32,7 @@ final class CreateAndListFinancialAccountsTest extends TestCase
         $response->assertCreated()
             ->assertJsonPath('data.name', 'Conta Principal')
             ->assertJsonPath('data.institution_name', 'Nubank')
-            ->assertJsonPath('data.color', 'teal')
+            ->assertJsonPath('data.color', 'cyan')
             ->assertJsonPath('data.icon', 'circle')
             ->assertJsonPath('data.status', 'active')
             ->assertJsonPath('data.current_balance_centavos', 125_050);
@@ -44,6 +44,25 @@ final class CreateAndListFinancialAccountsTest extends TestCase
             'initial_balance_centavos' => 125_050,
             'current_balance_centavos' => 125_050,
         ]);
+    }
+
+    #[Test]
+    public function account_accepts_a_new_palette_color_on_create_and_update(): void
+    {
+        $this->signedInUser();
+
+        $accountId = $this->postJson('/api/v1/financial-accounts', [
+            'name' => 'Conta colorida',
+            'account_type' => 'checking',
+            'color' => 'yellow',
+            'initial_balance_centavos' => 0,
+        ])->assertCreated()->assertJsonPath('data.color', 'yellow')->json('data.id');
+
+        $this->patchJson("/api/v1/financial-accounts/{$accountId}", ['color' => 'brown'])
+            ->assertOk()->assertJsonPath('data.color', 'brown');
+
+        $this->patchJson("/api/v1/financial-accounts/{$accountId}", ['color' => 'indigo'])
+            ->assertOk()->assertJsonPath('data.color', 'indigo');
     }
 
     #[Test]
