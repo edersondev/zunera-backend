@@ -47,6 +47,22 @@ final class CreateAndListFinancialAccountsTest extends TestCase
     }
 
     #[Test]
+    public function account_accepts_a_new_palette_color_on_create_and_update(): void
+    {
+        $this->signedInUser();
+
+        $accountId = $this->postJson('/api/v1/financial-accounts', [
+            'name' => 'Conta colorida',
+            'account_type' => 'checking',
+            'color' => 'indigo',
+            'initial_balance_centavos' => 0,
+        ])->assertCreated()->assertJsonPath('data.color', 'indigo')->json('data.id');
+
+        $this->patchJson("/api/v1/financial-accounts/{$accountId}", ['color' => 'slate'])
+            ->assertOk()->assertJsonPath('data.color', 'slate');
+    }
+
+    #[Test]
     public function list_returns_active_accounts_by_default_and_summary_sums_active_only(): void
     {
         $user = $this->signedInUser();
