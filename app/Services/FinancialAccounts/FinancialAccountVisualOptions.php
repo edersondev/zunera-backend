@@ -8,7 +8,7 @@ use App\Services\Appearance\VisualColorPalette;
 
 final class FinancialAccountVisualOptions
 {
-    public const DEFAULT_COLOR = 'teal';
+    public const DEFAULT_COLOR = 'cyan';
 
     public const DEFAULT_ICON = 'circle';
 

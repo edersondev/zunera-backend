@@ -16,14 +16,23 @@ final class VisualColorPaletteTest extends TestCase
     #[Test]
     public function all_three_resources_use_the_same_curated_color_values(): void
     {
-        $expected = [
-            'teal', 'blue', 'indigo', 'violet', 'purple', 'pink', 'rose', 'red',
-            'orange', 'amber', 'lime', 'green', 'emerald', 'cyan', 'sky', 'slate',
+        $selectable = [
+            'blue', 'violet', 'pink', 'red', 'orange',
+            'yellow', 'green', 'cyan', 'brown', 'gray',
+        ];
+        $accepted = [
+            ...$selectable,
+            'teal', 'indigo', 'purple', 'rose', 'amber',
+            'lime', 'emerald', 'sky', 'slate',
         ];
 
-        self::assertSame($expected, VisualColorPalette::colors());
-        self::assertSame($expected, FinancialAccountVisualOptions::colors());
-        self::assertSame($expected, CategoryVisualOptions::colors());
-        self::assertSame($expected, CreditCardVisualOptions::colors());
+        self::assertSame($selectable, VisualColorPalette::selectableColors());
+        self::assertSame($accepted, VisualColorPalette::colors());
+        self::assertSame($accepted, FinancialAccountVisualOptions::colors());
+        self::assertSame($accepted, CategoryVisualOptions::colors());
+        self::assertSame($accepted, CreditCardVisualOptions::colors());
+        self::assertSame('cyan', FinancialAccountVisualOptions::color(null));
+        self::assertSame('cyan', CategoryVisualOptions::color(null));
+        self::assertSame('violet', CreditCardVisualOptions::color(null));
     }
 }

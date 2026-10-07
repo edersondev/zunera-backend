@@ -6,7 +6,7 @@ use App\Services\Appearance\VisualColorPalette;
 
 final class CategoryVisualOptions
 {
-    public const DEFAULT_COLOR = 'teal';
+    public const DEFAULT_COLOR = 'cyan';
 
     public const DEFAULT_ICON = 'circle';
 

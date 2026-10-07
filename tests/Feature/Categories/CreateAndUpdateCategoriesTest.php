@@ -39,6 +39,9 @@ final class CreateAndUpdateCategoriesTest extends TestCase
 
         $this->patchJson("/api/v1/categories/{$categoryId}", ['color' => 'pink'])
             ->assertOk()->assertJsonPath('data.color', 'pink');
+
+        $this->patchJson("/api/v1/categories/{$categoryId}", ['color' => 'gray'])
+            ->assertOk()->assertJsonPath('data.color', 'gray');
     }
 
     #[Test]

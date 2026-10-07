@@ -65,7 +65,7 @@ final class ViewAndUpdateFinancialAccountsTest extends TestCase
             ->assertJsonPath('data.name', 'Conta nova')
             ->assertJsonPath('data.account_type', 'savings')
             ->assertJsonPath('data.institution_name', null)
-            ->assertJsonPath('data.color', 'teal')
+            ->assertJsonPath('data.color', 'cyan')
             ->assertJsonPath('data.icon', 'bank')
             ->assertJsonPath('data.initial_balance_centavos', 2_500)
             ->assertJsonPath('data.current_balance_centavos', 2_500);
@@ -74,7 +74,7 @@ final class ViewAndUpdateFinancialAccountsTest extends TestCase
             'id' => $account->id,
             'normalized_name' => 'conta nova',
             'institution_name' => null,
-            'color' => 'teal',
+            'color' => 'cyan',
             'icon' => 'bank',
         ]);
     }
