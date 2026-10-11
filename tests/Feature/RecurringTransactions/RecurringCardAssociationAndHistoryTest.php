@@ -10,6 +10,7 @@ use App\Enums\RecurringTransactions\RecurrenceState;
 use App\Models\RecurringCardOccurrence;
 use App\Models\RecurringTransaction;
 use App\Services\RecurringTransactions\RecurringOccurrenceService;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 
@@ -76,6 +77,8 @@ final class RecurringCardAssociationAndHistoryTest extends RecurringTransactionF
     #[Test]
     public function purchase_correction_keeps_source_date_reserved(): void
     {
+        $this->travelTo(CarbonImmutable::parse('2026-09-25 10:00:00', 'America/Sao_Paulo'));
+
         [$rule, $occurrence] = $this->recordedOccurrence();
         $purchase = $occurrence->purchase;
 
