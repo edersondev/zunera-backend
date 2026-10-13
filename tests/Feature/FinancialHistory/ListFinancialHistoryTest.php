@@ -14,7 +14,9 @@ use App\Models\RecurringTransaction;
 use App\Models\Transaction;
 use App\Models\Transfer;
 use App\Models\User;
+use App\Services\RecurringTransactions\RecurringDateRange;
 use App\Services\Transfers\TransferBalanceReconciler;
+use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Route;
 use PHPUnit\Framework\Attributes\Test;
@@ -83,6 +85,8 @@ final class ListFinancialHistoryTest extends TestCase
     #[Test]
     public function optional_recurring_include_merges_rules_by_next_occurrence_without_changing_default_history(): void
     {
+        $this->travelTo(CarbonImmutable::parse('2026-10-01 12:00:00', RecurringDateRange::BUSINESS_TIMEZONE));
+
         $user = $this->signIn();
         $account = FinancialAccount::factory()->create(['user_id' => $user->id]);
         $category = Category::factory()->create([

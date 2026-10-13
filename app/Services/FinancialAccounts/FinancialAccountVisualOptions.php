@@ -4,9 +4,11 @@ declare(strict_types=1);
 
 namespace App\Services\FinancialAccounts;
 
+use App\Services\Appearance\VisualColorPalette;
+
 final class FinancialAccountVisualOptions
 {
-    public const DEFAULT_COLOR = 'teal';
+    public const DEFAULT_COLOR = 'cyan';
 
     public const DEFAULT_ICON = 'circle';
 
@@ -15,7 +17,7 @@ final class FinancialAccountVisualOptions
      */
     public static function colors(): array
     {
-        return ['teal', 'blue', 'violet', 'amber', 'rose', 'cyan'];
+        return VisualColorPalette::colors();
     }
 
     /**

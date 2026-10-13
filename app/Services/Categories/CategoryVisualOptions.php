@@ -2,16 +2,18 @@
 
 namespace App\Services\Categories;
 
+use App\Services\Appearance\VisualColorPalette;
+
 final class CategoryVisualOptions
 {
-    public const DEFAULT_COLOR = 'teal';
+    public const DEFAULT_COLOR = 'cyan';
 
     public const DEFAULT_ICON = 'circle';
 
     /** @return list<string> */
     public static function colors(): array
     {
-        return ['teal', 'blue', 'violet', 'amber', 'rose', 'cyan'];
+        return VisualColorPalette::colors();
     }
 
     /** @return list<string> */

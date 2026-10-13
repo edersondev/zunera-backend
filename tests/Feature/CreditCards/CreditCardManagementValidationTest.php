@@ -123,6 +123,18 @@ final class CreditCardManagementValidationTest extends TestCase
     }
 
     #[Test]
+    public function card_accepts_new_palette_colors_on_create_and_update(): void
+    {
+        $this->cardSignIn();
+
+        $cardId = $this->postJson('/api/v1/credit-cards', $this->payload(['color' => 'orange']), ['Idempotency-Key' => 'palette-create'])
+            ->assertCreated()->assertJsonPath('data.color', 'orange')->json('data.id');
+
+        $this->patchJson('/api/v1/credit-cards/'.$cardId, ['color' => 'emerald'], ['Idempotency-Key' => 'palette-update'])
+            ->assertOk()->assertJsonPath('data.color', 'emerald');
+    }
+
+    #[Test]
     public function optional_visual_fields_default_when_omitted(): void
     {
         $this->cardSignIn();
