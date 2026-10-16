@@ -25,6 +25,9 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->append(SetRequestLocale::class);
         $middleware->statefulApi();
+        $middleware->redirectGuestsTo(
+            fn (Request $request): ?string => $request->is('api/*') ? null : route('login'),
+        );
         $middleware->alias([
             'session.lifetime' => EnforceSessionLifetime::class,
             'account.active' => EnsureAccountActive::class,
