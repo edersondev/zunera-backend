@@ -20,7 +20,7 @@ return [
     |
     */
 
-    'default' => env('LOG_CHANNEL', 'stack'),
+    'default' => env('LOG_CHANNEL', 'daily'),
 
     /*
     |--------------------------------------------------------------------------
@@ -56,7 +56,7 @@ return [
 
         'stack' => [
             'driver' => 'stack',
-            'channels' => explode(',', (string) env('LOG_STACK', 'single')),
+            'channels' => explode(',', (string) env('LOG_STACK', 'daily')),
             'ignore_exceptions' => false,
         ],
 
@@ -71,7 +71,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/authentication.log'),
             'level' => env('AUTH_LOG_LEVEL', 'info'),
-            'max_files' => env('AUTH_SECURITY_LOG_RETENTION_DAYS', 365),
+            'max_files' => (int) env('AUTH_LOG_DAILY_DAYS', 30),
             'replace_placeholders' => true,
         ],
 
@@ -79,7 +79,7 @@ return [
             'driver' => 'daily',
             'path' => storage_path('logs/laravel.log'),
             'level' => env('LOG_LEVEL', 'debug'),
-            'max_files' => env('LOG_DAILY_DAYS', 14),
+            'max_files' => (int) env('LOG_DAILY_DAYS', 14),
             'replace_placeholders' => true,
         ],
 
