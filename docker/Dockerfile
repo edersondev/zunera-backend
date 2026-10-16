@@ -1,43 +1,22 @@
-FROM php:8.3-apache-trixie
+FROM php:8.5-fpm-alpine
 
-RUN apt-get update && apt-get install -y --no-install-recommends \
+RUN apk add --no-cache \
   unzip \
   zip \
-  curl \
   nano \
-  locales \
-  libonig-dev \
-  zlib1g-dev \
-  libpng-dev \
-  libcurl4-openssl-dev
+  libpng-dev
 
-RUN docker-php-ext-install bcmath mbstring gd curl opcache mysqli pdo_mysql
-
-RUN a2enmod rewrite
-
-ENV APACHE_LOG_DIR="/var/log/apache2"
-
-COPY 000-default.conf /etc/apache2/sites-available/000-default.conf
+RUN docker-php-ext-install bcmath gd mysqli pdo_mysql
 
 COPY docker-entrypoint.sh /
 RUN chmod +x /docker-entrypoint.sh
 
 ENTRYPOINT ["/docker-entrypoint.sh"]
 
-# Install composer
-WORKDIR /usr/local/bin/
-RUN curl -sS https://getcomposer.org/installer | php
-RUN chmod +x composer.phar
-RUN mv composer.phar composer
-
-# Set path bin
-WORKDIR /root
-RUN echo 'export PATH="$PATH:$HOME/.composer/vendor/bin"' >> ~/.bashrc
-
-# Clean
-RUN apt-get clean && apt-get autoclean && apt-get autoremove -y \
-&& rm -rf /var/lib/apt/lists/*
+RUN curl -fsSL https://getcomposer.org/installer -o /tmp/composer-setup.php \
+  && php /tmp/composer-setup.php --install-dir=/usr/local/bin --filename=composer \
+  && rm /tmp/composer-setup.php
 
 WORKDIR /var/www/html
 
-CMD ["apache2-foreground"]
+CMD ["php-fpm"]
