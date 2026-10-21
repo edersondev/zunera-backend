@@ -71,6 +71,12 @@ class CreditCardPurchase extends Model
         return $this->hasMany(CreditCardCreditEvent::class)->orderBy('id');
     }
 
+    /** @return HasMany<CreditCardPurchaseMove, $this> */
+    public function moves(): HasMany
+    {
+        return $this->hasMany(CreditCardPurchaseMove::class)->orderBy('moved_at')->orderBy('id');
+    }
+
     /** @return BelongsTo<RecurringCardOccurrence, $this> */
     public function recurringCardOccurrence(): BelongsTo
     {

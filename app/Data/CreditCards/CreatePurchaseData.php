@@ -15,6 +15,7 @@ final readonly class CreatePurchaseData
         public int $totalAmountCentavos,
         public int $installmentCount,
         public string $purchaseDate,
+        public ?string $statementClosingDate,
         public bool $overLimitConfirmed,
         public ?int $confirmedAvailableCreditCentavos,
     ) {}

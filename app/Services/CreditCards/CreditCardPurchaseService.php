@@ -34,6 +34,7 @@ final class CreditCardPurchaseService
         private readonly CreditCardMutationIdempotencyService $idempotency,
         private readonly CreditCardObligationReconciler $reconciler,
         private readonly BillingCycleCalculator $cycles,
+        private readonly StatementCycleResolver $resolver,
         private readonly InstallmentAllocator $allocator,
         private readonly StatementNotificationProjector $notifications,
     ) {}
@@ -52,6 +53,7 @@ final class CreditCardPurchaseService
                 'description' => $data->description,
                 'notes' => $data->notes,
                 'purchase_date' => $data->purchaseDate,
+                'statement_closing_date' => $data->statementClosingDate,
                 'total_amount_centavos' => $data->totalAmountCentavos,
                 'installment_count' => $data->installmentCount,
                 'confirm_over_limit' => $data->overLimitConfirmed,
@@ -65,6 +67,18 @@ final class CreditCardPurchaseService
                         'installment_count' => ['Each installment must be at least one centavo.'],
                     ]);
                 }
+                $derived = $this->resolver->resolveForDate($lockedCard, $data->purchaseDate);
+                $requiresChoice = $derived->closingDate < $this->businessDate()->toDateString();
+                if ($requiresChoice && $data->statementClosingDate === null) {
+                    throw ValidationException::withMessages(['statement_closing_date' => ['Choose a statement for this backdated purchase.']]);
+                }
+                if (! $requiresChoice && $data->statementClosingDate !== null) {
+                    throw ValidationException::withMessages(['statement_closing_date' => ['Statement choice is available only after the date-derived cycle closes.']]);
+                }
+                $firstClosing = $data->statementClosingDate ?? $derived->closingDate;
+                $schedule = $this->resolver->scheduleFrom(
+                    $lockedCard, $data->purchaseDate, $firstClosing, $data->installmentCount, 'statement_closing_date',
+                );
                 $this->assertWithinAvailableCredit($lockedCard, $data->totalAmountCentavos, $data->overLimitConfirmed, $data->confirmedAvailableCreditCentavos);
 
                 $purchase = CreditCardPurchase::query()->create([
@@ -82,10 +96,10 @@ final class CreditCardPurchaseService
                     'category_status_snapshot' => $category->status->value,
                 ]);
 
-                $cycle = $this->cycles->cycleForDate($data->purchaseDate, $lockedCard->closing_day, $lockedCard->due_day);
                 $statementIds = [];
                 $recognitionDates = [];
                 foreach ($this->allocator->allocate($data->totalAmountCentavos, $data->installmentCount) as $index => $amountCentavos) {
+                    $cycle = $schedule[$index];
                     $statement = $this->statementFor($lockedCard, $cycle);
                     $statementIds[] = (int) $statement->id;
                     $recognitionDates[] = $cycle->closingDate;
@@ -99,7 +113,6 @@ final class CreditCardPurchaseService
                         'credit_adjustment_centavos' => 0,
                         'recognition_date' => $cycle->closingDate,
                     ]);
-                    $cycle = $this->cycles->nextCycle($cycle, $lockedCard->closing_day, $lockedCard->due_day);
                 }
 
                 $this->reconciler->refreshCardStatements($lockedCard, $this->businessDate());

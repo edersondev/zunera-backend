@@ -68,8 +68,8 @@ final class CreditCardStatementPaymentService
                 ]);
 
                 $this->accounts->reconcile(null, $payment);
-                $this->reconciler->syncStatement($locked, $this->businessDate());
-                $this->notifications->capture($locked);
+                $this->reconciler->refreshCardStatements($locked->creditCard, $this->businessDate());
+                $this->notifications->capture($locked->refresh());
 
                 return [
                     'target_type' => 'credit_card_statement_payment',
@@ -117,8 +117,8 @@ final class CreditCardStatementPaymentService
                 $locked->save();
 
                 $this->accounts->reconcile($before, $locked);
-                $this->reconciler->syncStatement($statement, $this->businessDate());
-                $this->notifications->capture($statement);
+                $this->reconciler->refreshCardStatements($statement->creditCard, $this->businessDate());
+                $this->notifications->capture($statement->refresh());
 
                 return [
                     'target_type' => 'credit_card_statement_payment',
@@ -192,8 +192,8 @@ final class CreditCardStatementPaymentService
 
             $result = $this->idempotency->run($user->id, $idempotencyKey, $operation, $fingerprint, function () use ($locked, $statement, $mutate): array {
                 $mutate($locked);
-                $this->reconciler->syncStatement($statement, $this->businessDate());
-                $this->notifications->capture($statement);
+                $this->reconciler->refreshCardStatements($statement->creditCard, $this->businessDate());
+                $this->notifications->capture($statement->refresh());
 
                 return [
                     'target_type' => 'credit_card_statement_payment',

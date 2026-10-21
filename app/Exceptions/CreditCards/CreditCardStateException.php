@@ -90,6 +90,26 @@ final class CreditCardStateException extends RuntimeException
         return new self('purchase_not_directly_editable', 'A purchase can be corrected directly only while every installment is still open.');
     }
 
+    public static function staleMovePreview(): self
+    {
+        return new self('STALE_MOVE_PREVIEW', 'Purchase or statement values changed since the preview. Review the move again.');
+    }
+
+    public static function movedPurchaseAllocationConflict(): self
+    {
+        return new self('MOVED_PURCHASE_ALLOCATION_CONFLICT', 'Move this purchase through the statement action before changing its card, date, amount, or installment count.');
+    }
+
+    public static function purchaseHasLinkedCredits(): self
+    {
+        return new self('PURCHASE_HAS_LINKED_CREDITS', 'Remove linked credit events before deleting this purchase.');
+    }
+
+    public static function purchaseDeleted(): self
+    {
+        return new self('PURCHASE_DELETED', 'This purchase was permanently deleted.');
+    }
+
     public static function creditEventExceedsUncredited(int $uncreditedCentavos): self
     {
         return new self(

@@ -30,6 +30,7 @@ final class CreditCardInstallmentPurchaseTest extends TestCase
             'category_id' => $this->expenseCategory($user)->id,
             'description' => 'Compra parcelada',
             'purchase_date' => '2026-09-05',
+            'statement_closing_date' => '2026-09-10',
             'total_amount_centavos' => 120_000,
             'installment_count' => 6,
         ], ['Idempotency-Key' => 'six-installments'])
@@ -59,6 +60,7 @@ final class CreditCardInstallmentPurchaseTest extends TestCase
             'category_id' => $this->expenseCategory($user)->id,
             'description' => 'R$ 100,00 em três',
             'purchase_date' => '2026-09-05',
+            'statement_closing_date' => '2026-09-10',
             'total_amount_centavos' => 10_000,
             'installment_count' => 3,
         ], ['Idempotency-Key' => 'uneven-installments'])
@@ -80,6 +82,7 @@ final class CreditCardInstallmentPurchaseTest extends TestCase
             'category_id' => $this->expenseCategory($user)->id,
             'description' => 'Compra em 4x',
             'purchase_date' => '2026-09-05',
+            'statement_closing_date' => '2026-09-10',
             'total_amount_centavos' => 80_000,
             'installment_count' => 4,
         ], ['Idempotency-Key' => 'reserve-full'])->assertCreated();
@@ -160,6 +163,7 @@ final class CreditCardInstallmentPurchaseTest extends TestCase
             'category_id' => $this->expenseCategory($user)->id,
             'description' => 'Compra idempotente',
             'purchase_date' => '2026-09-05',
+            'statement_closing_date' => '2026-09-10',
             'total_amount_centavos' => 50_000,
             'installment_count' => 5,
         ];
@@ -185,6 +189,7 @@ final class CreditCardInstallmentPurchaseTest extends TestCase
             'category_id' => $category->id,
             'description' => 'Compra',
             'purchase_date' => '2026-09-05',
+            'statement_closing_date' => '2026-09-10',
             'total_amount_centavos' => 10_000,
             'installment_count' => 1,
         ];

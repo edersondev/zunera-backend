@@ -77,6 +77,40 @@ final class CreditCardPurchaseCorrectionService
                     throw ValidationException::withMessages(['installment_count' => ['Each installment must be at least one centavo.']]);
                 }
 
+                if ($locked->moves()->exists()) {
+                    if ($card->id !== $locked->credit_card_id
+                        || $total !== (int) $locked->total_amount_centavos
+                        || $count !== (int) $locked->installment_count
+                        || $purchaseDate !== $locked->purchase_date->toDateString()) {
+                        throw CreditCardStateException::movedPurchaseAllocationConflict();
+                    }
+
+                    if ($data->has('category_id')) {
+                        $locked->category_id = $category->id;
+                        $locked->category_name_snapshot = $category->name;
+                        $locked->category_status_snapshot = $category->status->value;
+                    }
+                    if ($data->has('description')) {
+                        $locked->description = (string) $data->changes['description'];
+                    }
+                    if ($data->has('notes')) {
+                        $locked->notes = $data->changes['notes'];
+                    }
+                    $locked->save();
+
+                    foreach ($locked->installments()->with('statement')->get() as $installment) {
+                        $this->notifications->capture($installment->statement);
+                        app(BudgetNotificationProjector::class)->captureDate((int) $user->id, $installment->recognition_date->toDateString());
+                    }
+
+                    return [
+                        'target_type' => 'credit_card_purchase',
+                        'target_id' => $locked->id,
+                        'status' => 200,
+                        'response' => ['data' => PurchaseResponseData::from($locked->refresh(), PurchaseResponseData::isDirectlyEditable($locked))],
+                    ];
+                }
+
                 $this->assertCorrectionFits($locked, $card, $total, $overLimitConfirmed, $expectedAvailableCreditCentavos);
                 $this->assertTargetCyclesStayOpen($card, $purchaseDate, $count);
 

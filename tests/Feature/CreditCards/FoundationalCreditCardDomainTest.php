@@ -37,6 +37,7 @@ final class FoundationalCreditCardDomainTest extends TestCase
             'category_id' => $category->id,
             'description' => 'Compra parcelada',
             'purchase_date' => '2026-09-05',
+            'statement_closing_date' => '2026-09-10',
             'total_amount_centavos' => 10_000,
             'installment_count' => 3,
         ];

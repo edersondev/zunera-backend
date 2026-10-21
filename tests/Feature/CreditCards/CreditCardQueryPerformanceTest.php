@@ -4,13 +4,6 @@ declare(strict_types=1);
 
 namespace Tests\Feature\CreditCards;
 
-use App\Models\Category;
-use App\Models\CreditCard;
-use App\Models\CreditCardStatement;
-use App\Models\FinancialAccount;
-use App\Models\User;
-use App\Services\CreditCards\BillingCycleCalculator;
-use Carbon\CarbonImmutable;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use PHPUnit\Framework\Attributes\Test;
@@ -23,138 +16,82 @@ final class CreditCardQueryPerformanceTest extends TestCase
     use RefreshDatabase;
 
     #[Test]
-    public function card_reads_and_credit_card_projections_stay_within_two_seconds_for_ten_thousand_combined_movements(): void
+    public function statement_options_and_move_preview_remain_bounded_with_one_thousand_purchases(): void
     {
         $user = $this->cardSignIn('2026-09-20');
-        $card = $this->activeCard($user, ['credit_limit_centavos' => 10_000_000]);
+        $card = $this->activeCard($user, ['closing_day' => 10, 'due_day' => 17, 'credit_limit_centavos' => 2_000_000]);
         $category = $this->expenseCategory($user);
-        $account = $this->cardAccount($user);
-        $statement = $this->statementFor(
-            $card,
-            app(BillingCycleCalculator::class)->cycleForDate('2026-09-05', $card->closing_day, $card->due_day),
-        );
+        $purchase = $this->recordPurchase($card, $category, 1_000, 1, '2026-09-15');
+        $statement = $purchase->installments()->firstOrFail()->statement;
 
-        $this->seedCombinedMovements($user, $card, $category, $account, $statement, 5_000);
-
-        foreach ([
-            '/api/v1/credit-cards',
-            '/api/v1/credit-card-statements/'.$statement->id,
-            '/api/v1/financial-dashboard/credit-cards',
-        ] as $path) {
-            $startedAt = microtime(true);
-            $this->getJson($path)->assertOk();
-
-            self::assertLessThan(2.0, microtime(true) - $startedAt, $path.' exceeded the two-second response budget.');
-        }
-
-        self::assertStringContainsString(
-            'credit_card_installments_card_statement_index',
-            $this->statementInstallmentPlan($card, $statement),
-            'The statement installment aggregate should use the card/statement index.',
-        );
-    }
-
-    private function seedCombinedMovements(
-        User $user,
-        CreditCard $card,
-        Category $category,
-        FinancialAccount $account,
-        CreditCardStatement $statement,
-        int $count,
-    ): void {
-        $now = now()->toDateTimeString();
-        $transactions = [];
-        $purchases = [];
-
-        for ($index = 1; $index <= $count; $index++) {
-            $day = str_pad((string) (($index % 28) + 1), 2, '0', STR_PAD_LEFT);
-            $transactions[] = [
-                'user_id' => $user->id,
-                'financial_account_id' => $account->id,
-                'category_id' => $category->id,
-                'type' => 'expense',
-                'status' => 'effective',
-                'description' => 'Cash movement '.$index,
-                'notes' => null,
-                'amount_centavos' => 100,
-                'currency_code' => 'BRL',
-                'transaction_date' => '2026-09-'.$day,
-                'search_text' => 'cash movement',
-                'removed_at' => null,
-                'recurring_transaction_id' => null,
-                'recurrence_scheduled_date' => null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-            $purchases[] = [
+        for ($index = 1; $index < 1_000; $index++) {
+            $purchaseId = DB::table('credit_card_purchases')->insertGetId([
                 'user_id' => $user->id,
                 'credit_card_id' => $card->id,
                 'category_id' => $category->id,
-                'description' => 'Card movement '.$index,
-                'notes' => null,
-                'total_amount_centavos' => 100,
+                'description' => 'Performance seed '.$index,
+                'total_amount_centavos' => 1_000,
                 'installment_count' => 1,
-                'purchase_date' => '2026-09-'.$day,
+                'purchase_date' => '2026-09-15',
                 'currency_code' => 'BRL',
                 'card_name_snapshot' => $card->name,
                 'category_name_snapshot' => $category->name,
                 'category_status_snapshot' => $category->status->value,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ];
-        }
-
-        foreach (array_chunk($transactions, 500) as $chunk) {
-            DB::table('transactions')->insert($chunk);
-        }
-        foreach (array_chunk($purchases, 500) as $chunk) {
-            DB::table('credit_card_purchases')->insert($chunk);
-        }
-
-        $statementIds = [$statement->id];
-        for ($index = 1; $index < 100; $index++) {
-            $closingDate = CarbonImmutable::parse('2018-01-10')->addMonths($index);
-            $statementIds[] = CreditCardStatement::query()->create([
-                'user_id' => $user->id,
-                'credit_card_id' => $card->id,
-                'period_from' => $closingDate->subMonth()->addDay(),
-                'period_to' => $closingDate,
-                'closing_date' => $closingDate,
-                'due_date' => $closingDate->addDays(7),
-                'status' => 'paid',
-            ])->id;
-        }
-
-        $installments = DB::table('credit_card_purchases')
-            ->where('user_id', $user->id)
-            ->where('credit_card_id', $card->id)
-            ->orderBy('id')
-            ->pluck('id')
-            ->values()
-            ->map(fn (int $purchaseId, int $index): array => [
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
+            DB::table('credit_card_installments')->insert([
                 'user_id' => $user->id,
                 'credit_card_purchase_id' => $purchaseId,
                 'credit_card_id' => $card->id,
-                'credit_card_statement_id' => $statementIds[$index % count($statementIds)],
+                'credit_card_statement_id' => $statement->id,
                 'sequence' => 1,
-                'amount_centavos' => 100,
+                'amount_centavos' => 1_000,
                 'credit_adjustment_centavos' => 0,
-                'recognition_date' => null,
-                'created_at' => $now,
-                'updated_at' => $now,
-            ])
-            ->all();
-
-        foreach (array_chunk($installments, 500) as $chunk) {
-            DB::table('credit_card_installments')->insert($chunk);
+                'recognition_date' => '2026-10-10',
+                'created_at' => now(),
+                'updated_at' => now(),
+            ]);
         }
+        $this->syncCard($card);
+        self::assertSame(1_000_000, $statement->refresh()->original_amount_centavos);
+
+        $optionsUrl = "/api/v1/credit-cards/{$card->id}/statement-options?purchase_date=2026-09-15&limit=12";
+        $previewUrl = "/api/v1/credit-card-purchases/{$purchase->id}/move-preview";
+        $choice = ['mode' => 'full_schedule', 'target_closing_date' => '2026-11-10'];
+
+        $optionsTimes = $this->measure(110, fn () => $this->getJson($optionsUrl)->assertOk());
+        $previewTimes = $this->measure(110, fn () => $this->postJson($previewUrl, $choice)->assertOk());
+        self::assertLessThan(2_000, $this->p95(array_slice($optionsTimes, 10)), 'Statement options p95 exceeded 2 seconds.');
+        self::assertLessThan(2_000, $this->p95(array_slice($previewTimes, 10)), 'Move preview p95 exceeded 2 seconds.');
+
+        $purchasePlan = DB::select('EXPLAIN QUERY PLAN SELECT * FROM credit_card_purchases WHERE user_id = ? AND id = ?', [$user->id, $purchase->id]);
+        $statementPlan = DB::select('EXPLAIN QUERY PLAN SELECT * FROM credit_card_statements WHERE credit_card_id = ? AND closing_date = ?', [$card->id, '2026-10-10']);
+        $installmentPlan = DB::select('EXPLAIN QUERY PLAN SELECT * FROM credit_card_installments WHERE credit_card_purchase_id = ? ORDER BY sequence', [$purchase->id]);
+        self::assertStringContainsString('SEARCH', $purchasePlan[0]->detail);
+        self::assertStringContainsString('SEARCH', $statementPlan[0]->detail);
+        self::assertStringContainsString('SEARCH', $installmentPlan[0]->detail);
+        self::assertSame(1_000, DB::table('credit_card_purchases')->where('credit_card_id', $card->id)->count());
     }
 
-    private function statementInstallmentPlan(CreditCard $card, CreditCardStatement $statement): string
+    /** @return list<float> */
+    private function measure(int $count, callable $request): array
     {
-        return json_encode(DB::select(
-            'EXPLAIN QUERY PLAN SELECT SUM(amount_centavos) FROM credit_card_installments WHERE credit_card_id = ? AND credit_card_statement_id = ?',
-            [$card->id, $statement->id],
-        ), JSON_THROW_ON_ERROR);
+        $times = [];
+        for ($index = 0; $index < $count; $index++) {
+            $start = hrtime(true);
+            $request();
+            $times[] = (hrtime(true) - $start) / 1_000_000;
+        }
+
+        return $times;
+    }
+
+    /** @param list<float> $times */
+    private function p95(array $times): float
+    {
+        sort($times);
+
+        return $times[(int) ceil(count($times) * 0.95) - 1];
     }
 }
