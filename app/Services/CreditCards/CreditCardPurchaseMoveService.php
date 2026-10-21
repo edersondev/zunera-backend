@@ -119,7 +119,7 @@ final class CreditCardPurchaseMoveService
                     ]);
                 }
 
-                foreach ($this->creditEvents->reallocateForMovedPurchase($purchase, $card) as $statementId) {
+                foreach ($this->creditEvents->reallocateForCard($card) as $statementId) {
                     $affectedIds[$statementId] = true;
                 }
                 $this->reconciler->refreshCardStatements($card, $this->cycles->businessToday());
@@ -249,7 +249,7 @@ final class CreditCardPurchaseMoveService
             throw ValidationException::withMessages(['target_closing_date' => ['Choose a statement that changes at least one installment.']]);
         }
 
-        $impacts = $this->simulateImpacts($card, $purchase, $installments, $placements, $destinationCycles, $impact);
+        $impacts = $this->simulateImpacts($card, $placements, $destinationCycles, $impact);
 
         $state = [
             'purchase' => $purchase->only(['id', 'credit_card_id', 'category_id', 'description', 'purchase_date', 'total_amount_centavos', 'installment_count', 'updated_at']),
@@ -286,25 +286,24 @@ final class CreditCardPurchaseMoveService
      * @param  array<string, int>  $impact
      * @return list<array<string, int|string>>
      */
-    private function simulateImpacts(CreditCard $card, CreditCardPurchase $purchase, $installments, array $placements, array $destinationCycles, array $impact): array
+    private function simulateImpacts(CreditCard $card, array $placements, array $destinationCycles, array $impact): array
     {
         $statements = CreditCardStatement::query()->where('credit_card_id', $card->id)->get();
         $events = DB::table('credit_card_credit_events')
-            ->where('credit_card_purchase_id', $purchase->id)
-            ->orderBy('id')
-            ->get(['id', 'amount_centavos']);
-        $linkedEventIds = array_fill_keys($events->pluck('id')->all(), true);
-        $applications = DB::table('credit_card_credit_applications')
             ->where('credit_card_id', $card->id)
-            ->where('kind', 'statement')
-            ->whereNull('superseded_at')
-            ->get(['credit_card_statement_id', 'credit_card_credit_event_id', 'amount_centavos']);
+            ->orderBy('id')
+            ->get(['id', 'credit_card_purchase_id', 'amount_centavos']);
+        $installmentsByPurchase = CreditCardInstallment::query()
+            ->where('credit_card_id', $card->id)
+            ->with('statement')
+            ->orderBy('credit_card_purchase_id')
+            ->orderBy('sequence')
+            ->get()
+            ->groupBy('credit_card_purchase_id');
 
         $rows = [];
-        $closingById = [];
         foreach ($statements as $statement) {
             $closing = $statement->closing_date->toDateString();
-            $closingById[$statement->id] = $closing;
             $rows[$closing] = [
                 'id' => (int) $statement->id,
                 'due' => $statement->due_date->toDateString(),
@@ -336,22 +335,14 @@ final class CreditCardPurchaseMoveService
                 'surplus_applied' => 0,
             ];
         }
-        foreach ($applications as $application) {
-            if (! isset($linkedEventIds[$application->credit_card_credit_event_id])) {
-                $rows[$closingById[$application->credit_card_statement_id]]['event_credit'] += (int) $application->amount_centavos;
-            }
-        }
         foreach ($impact as $closing => $delta) {
             $rows[$closing]['gross'] += $delta;
         }
 
-        foreach ($installments as $installment) {
-            $old = $installment->statement->closing_date->toDateString();
-            $new = $placements[$installment->id];
-            $credit = (int) $installment->credit_adjustment_centavos;
-            $rows[$old]['credit'] -= $credit;
-            if ($events->isEmpty()) {
-                $rows[$new]['credit'] += $credit;
+        foreach ($installmentsByPurchase as $installments) {
+            foreach ($installments as $installment) {
+                $old = $installment->statement->closing_date->toDateString();
+                $rows[$old]['credit'] -= (int) $installment->credit_adjustment_centavos;
             }
         }
 
@@ -359,8 +350,8 @@ final class CreditCardPurchaseMoveService
         $creditedInstallments = [];
         foreach ($events as $event) {
             $remaining = (int) $event->amount_centavos;
-            foreach ($installments as $installment) {
-                $closing = $placements[$installment->id];
+            foreach ($installmentsByPurchase->get($event->credit_card_purchase_id, []) as $installment) {
+                $closing = $placements[$installment->id] ?? $installment->statement->closing_date->toDateString();
                 $available = (int) $installment->amount_centavos - ($creditedInstallments[$installment->id] ?? 0);
                 $applied = min($remaining, $available, $outstanding($rows[$closing]));
                 $creditedInstallments[$installment->id] = ($creditedInstallments[$installment->id] ?? 0) + $applied;

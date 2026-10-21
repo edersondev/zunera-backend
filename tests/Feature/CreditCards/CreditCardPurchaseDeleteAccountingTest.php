@@ -104,4 +104,29 @@ final class CreditCardPurchaseDeleteAccountingTest extends TestCase
         self::assertSame(1, NotificationProjectionFact::query()
             ->where('source_kind', 'credit_card_statement')->where('source_id', $statementId)->count());
     }
+
+    #[Test]
+    public function deleting_a_purchase_releases_another_purchases_statement_credit(): void
+    {
+        $user = $this->cardSignIn('2026-09-20');
+        $card = $this->activeCard($user, ['closing_day' => 10, 'due_day' => 17]);
+        $category = $this->expenseCategory($user);
+        $account = $this->cardAccount($user);
+        $deleted = $this->recordPurchase($card, $category, 10_000, 1, '2026-08-05');
+        $refunded = $this->recordPurchase($card, $category, 10_000, 1, '2026-09-05');
+        $source = $deleted->installments()->firstOrFail()->statement;
+        $this->payStatement($refunded->installments()->firstOrFail()->statement, $account, 10_000, '2026-09-17');
+        $this->postJson("/api/v1/credit-card-purchases/{$refunded->id}/credit-events", [
+            'reason' => 'refund', 'amount_centavos' => 10_000, 'event_date' => '2026-09-19',
+        ], ['Idempotency-Key' => 'refund-before-other-delete'])->assertCreated();
+        self::assertSame(10_000, $source->refresh()->card_credit_applied_centavos);
+
+        $this->deleteJson("/api/v1/credit-card-purchases/{$deleted->id}", [], [
+            'Idempotency-Key' => 'delete-other-credit',
+        ])->assertOk();
+
+        self::assertSame(0, $source->refresh()->card_credit_applied_centavos);
+        self::assertSame(10_000, $this->cardSummary($card)['card_credit_centavos']);
+        self::assertSame(0, $this->cardSummary($card)['used_credit_centavos']);
+    }
 }

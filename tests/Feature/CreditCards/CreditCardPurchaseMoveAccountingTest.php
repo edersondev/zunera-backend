@@ -130,9 +130,40 @@ final class CreditCardPurchaseMoveAccountingTest extends TestCase
     }
 
     #[Test]
-    public function moving_from_paid_statement_reuses_surplus_without_moving_cash(): void
+    public function moving_a_purchase_reallocates_another_purchases_statement_credit(): void
     {
         $user = $this->cardSignIn('2026-09-20');
+        $card = $this->activeCard($user, ['closing_day' => 10, 'due_day' => 17]);
+        $category = $this->expenseCategory($user);
+        $account = $this->cardAccount($user);
+        $moved = $this->recordPurchase($card, $category, 10_000, 1, '2026-08-05');
+        $refunded = $this->recordPurchase($card, $category, 10_000, 1, '2026-09-05');
+        $source = $moved->installments()->firstOrFail()->statement;
+        $this->payStatement($refunded->installments()->firstOrFail()->statement, $account, 10_000, '2026-09-17');
+        $this->postJson("/api/v1/credit-card-purchases/{$refunded->id}/credit-events", [
+            'reason' => 'refund', 'amount_centavos' => 10_000, 'event_date' => '2026-09-19',
+        ], ['Idempotency-Key' => 'refund-other-purchase'])->assertCreated();
+        self::assertSame(10_000, $source->refresh()->card_credit_applied_centavos);
+
+        $choice = ['mode' => 'full_schedule', 'target_closing_date' => '2026-10-10'];
+        $preview = $this->postJson("/api/v1/credit-card-purchases/{$moved->id}/move-preview", $choice)->assertOk();
+        self::assertSame(0, collect($preview->json('data.affected_statements'))
+            ->firstWhere('closing_date', '2026-10-10')['outstanding_after_centavos']);
+        $this->postJson("/api/v1/credit-card-purchases/{$moved->id}/move", [
+            ...$choice, 'preview_token' => $preview->json('data.preview_token'),
+        ], ['Idempotency-Key' => 'move-other-credit'])->assertOk();
+
+        $destination = $moved->installments()->firstOrFail()->statement;
+        self::assertSame(0, $source->refresh()->card_credit_applied_centavos);
+        self::assertSame(10_000, $destination->refresh()->card_credit_applied_centavos);
+        self::assertSame(0, $destination->outstandingCentavos());
+        self::assertSame(0, $this->cardSummary($card)['card_credit_centavos']);
+    }
+
+    #[Test]
+    public function moving_from_paid_statement_reuses_surplus_without_moving_cash(): void
+    {
+        $user = $this->cardSignIn('2026-10-20');
         $card = $this->activeCard($user, ['closing_day' => 10, 'due_day' => 17]);
         $account = $this->cardAccount($user, ['initial_balance_centavos' => 50_000, 'current_balance_centavos' => 50_000]);
         $purchase = $this->recordPurchase($card, $this->expenseCategory($user), 20_000, 1, '2026-08-05');
@@ -152,6 +183,15 @@ final class CreditCardPurchaseMoveAccountingTest extends TestCase
         self::assertSame(20_000, $source->paid_centavos);
         self::assertSame(0, $this->cardSummary($card)['used_credit_centavos']);
         self::assertSame(0, $this->cardSummary($card)['card_credit_centavos']);
+
+        $destinationId = $purchase->installments()->firstOrFail()->credit_card_statement_id;
+        $this->postJson("/api/v1/credit-card-payments/{$payment->id}/remove", [], [
+            'Idempotency-Key' => 'remove-surplus-source',
+        ])->assertOk();
+        self::assertSame(20_000, $purchase->installments()->firstOrFail()->statement->refresh()->outstandingCentavos());
+        self::assertSame('statement_overdue', NotificationProjectionFact::query()
+            ->where('source_kind', 'credit_card_statement')->where('source_id', $destinationId)
+            ->orderByDesc('id')->firstOrFail()->qualified_type);
     }
 
     #[Test]

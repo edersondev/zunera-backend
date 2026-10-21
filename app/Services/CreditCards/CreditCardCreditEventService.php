@@ -155,10 +155,10 @@ final class CreditCardCreditEventService
      *
      * @return list<int> Statement IDs whose credit application may have changed.
      */
-    public function reallocateForMovedPurchase(CreditCardPurchase $purchase, CreditCard $card): array
+    public function reallocateForCard(CreditCard $card): array
     {
         $events = CreditCardCreditEvent::query()
-            ->where('credit_card_purchase_id', $purchase->id)
+            ->where('credit_card_id', $card->id)
             ->orderBy('id')
             ->lockForUpdate()
             ->get();
@@ -180,7 +180,7 @@ final class CreditCardCreditEventService
             ->active()
             ->update(['superseded_at' => now()]);
         CreditCardInstallment::query()
-            ->where('credit_card_purchase_id', $purchase->id)
+            ->where('credit_card_id', $card->id)
             ->update(['credit_adjustment_centavos' => 0]);
         CreditCardPaymentSurplusApplication::query()
             ->where('credit_card_id', $card->id)

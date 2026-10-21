@@ -91,6 +91,20 @@ final class ArchiveRestoreTest extends TestCase
 
         $this->actingAs($user);
         $archiveId = (int) $this->postJson('/api/v1/account-data/archive', [])->assertCreated()->json('data.id');
+        // Archives created before purchase management lack these later nullable columns.
+        foreach ([
+            'credit_card_credit_applications' => 'superseded_at',
+            'recurring_card_occurrences' => 'purchase_deleted_at',
+        ] as $recordType => $column) {
+            $record = DB::table('financial_data_archive_records')
+                ->where('financial_data_archive_id', $archiveId)
+                ->where('record_type', $recordType)
+                ->first();
+            $payload = json_decode((string) $record->payload, true, 512, JSON_THROW_ON_ERROR);
+            unset($payload[$column]);
+            DB::table('financial_data_archive_records')->where('id', $record->id)
+                ->update(['payload' => json_encode($payload, JSON_THROW_ON_ERROR)]);
+        }
         $current = FinancialAccount::factory()->create(['user_id' => $user->id, 'name' => 'Current account']);
 
         $response = $this->postJson("/api/v1/account-data/archives/{$archiveId}/restore", [])->assertOk()

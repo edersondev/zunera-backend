@@ -13,6 +13,7 @@ use App\Enums\CreditCards\CreditCardPaymentStatus;
 use App\Enums\CreditCards\CreditCardStatementStatus;
 use App\Enums\FinancialAccounts\AccountStatus;
 use App\Exceptions\CreditCards\CreditCardStateException;
+use App\Models\CreditCardPaymentSurplusApplication;
 use App\Models\CreditCardStatement;
 use App\Models\CreditCardStatementPayment;
 use App\Models\FinancialAccount;
@@ -67,9 +68,10 @@ final class CreditCardStatementPaymentService
                     'removed_at' => null,
                 ]);
 
+                $surplusBefore = $this->surplusDestinationIds((int) $locked->credit_card_id);
                 $this->accounts->reconcile(null, $payment);
                 $this->reconciler->refreshCardStatements($locked->creditCard, $this->businessDate());
-                $this->notifications->capture($locked->refresh());
+                $this->captureAffectedStatements($locked, $surplusBefore);
 
                 return [
                     'target_type' => 'credit_card_statement_payment',
@@ -116,9 +118,10 @@ final class CreditCardStatementPaymentService
                 $locked->status = $this->resolveStatus($paymentDate, $data->has('status') ? CreditCardPaymentStatus::from((string) $data->changes['status']) : null);
                 $locked->save();
 
+                $surplusBefore = $this->surplusDestinationIds((int) $statement->credit_card_id);
                 $this->accounts->reconcile($before, $locked);
                 $this->reconciler->refreshCardStatements($statement->creditCard, $this->businessDate());
-                $this->notifications->capture($statement->refresh());
+                $this->captureAffectedStatements($statement, $surplusBefore);
 
                 return [
                     'target_type' => 'credit_card_statement_payment',
@@ -191,9 +194,10 @@ final class CreditCardStatementPaymentService
             $fingerprint = $this->idempotency->fingerprint($operation.':'.$locked->id, ['id' => $locked->id]);
 
             $result = $this->idempotency->run($user->id, $idempotencyKey, $operation, $fingerprint, function () use ($locked, $statement, $mutate): array {
+                $surplusBefore = $this->surplusDestinationIds((int) $statement->credit_card_id);
                 $mutate($locked);
                 $this->reconciler->refreshCardStatements($statement->creditCard, $this->businessDate());
-                $this->notifications->capture($statement->refresh());
+                $this->captureAffectedStatements($statement, $surplusBefore);
 
                 return [
                     'target_type' => 'credit_card_statement_payment',
@@ -233,6 +237,30 @@ final class CreditCardStatementPaymentService
             ),
             'card' => CreditCardResponseData::card($card, $this->reconciler, $businessDate),
         ];
+    }
+
+    /** @return list<int> */
+    private function surplusDestinationIds(int $cardId): array
+    {
+        return CreditCardPaymentSurplusApplication::query()
+            ->where('credit_card_id', $cardId)
+            ->active()
+            ->pluck('destination_statement_id')
+            ->map(fn ($id): int => (int) $id)
+            ->all();
+    }
+
+    /** @param list<int> $surplusBefore */
+    private function captureAffectedStatements(CreditCardStatement $source, array $surplusBefore): void
+    {
+        $statementIds = array_unique(array_merge(
+            [(int) $source->id],
+            $surplusBefore,
+            $this->surplusDestinationIds((int) $source->credit_card_id),
+        ));
+        foreach ($statementIds as $statementId) {
+            $this->notifications->capture(CreditCardStatement::query()->findOrFail($statementId));
+        }
     }
 
     private function assertPayable(CreditCardStatement $statement): void

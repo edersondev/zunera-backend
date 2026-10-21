@@ -25,6 +25,7 @@ final class CreditCardPurchaseDeleteService
         private readonly CreditCardMutationIdempotencyService $idempotency,
         private readonly RecurringIdempotencyService $recurringIdempotency,
         private readonly CreditCardObligationReconciler $reconciler,
+        private readonly CreditCardCreditEventService $creditEvents,
         private readonly BillingCycleCalculator $cycles,
         private readonly StatementNotificationProjector $notifications,
     ) {}
@@ -63,11 +64,12 @@ final class CreditCardPurchaseDeleteService
                 $this->idempotency->scrubPurchaseResponseSnapshots((int) $user->id, $purchaseId);
                 $this->recurringIdempotency->scrubPurchaseResponseSnapshots((int) $user->id, $purchaseId);
                 $purchase->delete();
+                $reallocatedStatementIds = $this->creditEvents->reallocateForCard($card);
                 $this->reconciler->refreshCardStatements($card, $this->cycles->businessToday());
 
                 $surplusAfter = CreditCardPaymentSurplusApplication::query()
                     ->where('credit_card_id', $card->id)->active()->pluck('destination_statement_id')->all();
-                foreach (array_unique(array_merge($statementIds, $surplusBefore, $surplusAfter)) as $statementId) {
+                foreach (array_unique(array_merge($statementIds, $reallocatedStatementIds, $surplusBefore, $surplusAfter)) as $statementId) {
                     $this->notifications->capture(CreditCardStatement::query()->findOrFail($statementId));
                 }
                 foreach ($closingDates as $date) {
