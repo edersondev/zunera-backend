@@ -14,8 +14,8 @@ return new class extends Migration
             $table->id();
             $table->foreignId('user_id')->constrained()->cascadeOnDelete();
             $table->foreignId('credit_card_id')->constrained('credit_cards')->cascadeOnDelete();
-            $table->foreignId('source_statement_id')->constrained('credit_card_statements')->cascadeOnDelete();
-            $table->foreignId('destination_statement_id')->constrained('credit_card_statements')->cascadeOnDelete();
+            $table->foreignId('source_statement_id')->constrained(table: 'credit_card_statements', indexName: 'cc_surplus_source_statement_fk')->cascadeOnDelete();
+            $table->foreignId('destination_statement_id')->constrained(table: 'credit_card_statements', indexName: 'cc_surplus_destination_statement_fk')->cascadeOnDelete();
             $table->unsignedBigInteger('amount_centavos');
             $table->date('applied_at');
             $table->timestamp('superseded_at')->nullable();
