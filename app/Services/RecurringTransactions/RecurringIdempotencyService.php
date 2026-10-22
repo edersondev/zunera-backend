@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace App\Services\RecurringTransactions;
 
+use App\Exceptions\CreditCards\CreditCardStateException;
 use App\Exceptions\RecurringTransactions\RecurrenceStateException;
 use Illuminate\Support\Facades\DB;
 use LogicException;
@@ -41,6 +42,9 @@ final class RecurringIdempotencyService
             }
 
             $payload = json_decode((string) $existing->response_body, true, flags: JSON_THROW_ON_ERROR);
+            if (($payload['code'] ?? null) === 'PURCHASE_DELETED') {
+                throw CreditCardStateException::purchaseDeleted();
+            }
 
             return [
                 'recurring_transaction_id' => (int) $existing->recurring_transaction_id,
@@ -84,5 +88,43 @@ final class RecurringIdempotencyService
                 'response_body' => json_encode($response, JSON_THROW_ON_ERROR),
                 'updated_at' => now(),
             ]);
+    }
+
+    public function scrubPurchaseResponseSnapshots(int $userId, int $purchaseId): void
+    {
+        $requests = DB::table('recurring_mutation_requests')
+            ->where('user_id', $userId)
+            ->whereNotNull('response_body')
+            ->lockForUpdate()
+            ->get(['id', 'response_body']);
+        foreach ($requests as $request) {
+            $body = json_decode((string) $request->response_body, true, flags: JSON_THROW_ON_ERROR);
+            if (! is_array($body) || ! $this->referencesPurchase($body, $purchaseId)) {
+                continue;
+            }
+            DB::table('recurring_mutation_requests')->where('id', $request->id)->update([
+                'response_status' => 409,
+                'response_body' => json_encode(['code' => 'PURCHASE_DELETED'], JSON_THROW_ON_ERROR),
+                'updated_at' => now(),
+            ]);
+        }
+    }
+
+    /** @param array<string|int, mixed> $body */
+    private function referencesPurchase(array $body, int $purchaseId): bool
+    {
+        foreach ($body as $key => $value) {
+            if ($key === 'purchase_id' && (int) $value === $purchaseId) {
+                return true;
+            }
+            if ($key === 'purchase' && is_array($value) && (int) ($value['id'] ?? 0) === $purchaseId) {
+                return true;
+            }
+            if (is_array($value) && $this->referencesPurchase($value, $purchaseId)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

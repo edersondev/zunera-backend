@@ -16,8 +16,9 @@ final class ArchiveRecordRestorer
         'recurring_transactions', 'financial_goals', 'credit_card_statements',
         'credit_card_purchases', 'budget_category_plans', 'transactions',
         'transfers', 'recurring_card_occurrences', 'credit_card_installments',
-        'credit_card_statement_payments', 'credit_card_credit_events',
-        'credit_card_credit_applications', 'financial_goal_activities',
+        'credit_card_purchase_moves', 'credit_card_statement_payments', 'credit_card_credit_events',
+        'credit_card_credit_applications', 'credit_card_payment_surplus_applications',
+        'financial_goal_activities',
     ];
 
     private const REFERENCES = [
@@ -50,6 +51,12 @@ final class ArchiveRecordRestorer
             'credit_card_purchase_id' => 'credit_card_purchases', 'credit_card_id' => 'credit_cards',
             'credit_card_statement_id' => 'credit_card_statements',
         ],
+        'credit_card_purchase_moves' => [
+            'credit_card_id' => 'credit_cards', 'credit_card_purchase_id' => 'credit_card_purchases',
+            'credit_card_installment_id' => 'credit_card_installments',
+            'source_statement_id' => 'credit_card_statements',
+            'destination_statement_id' => 'credit_card_statements',
+        ],
         'credit_card_statement_payments' => [
             'credit_card_statement_id' => 'credit_card_statements', 'credit_card_id' => 'credit_cards',
             'financial_account_id' => 'financial_accounts',
@@ -61,6 +68,10 @@ final class ArchiveRecordRestorer
             'credit_card_credit_event_id' => 'credit_card_credit_events',
             'credit_card_id' => 'credit_cards', 'credit_card_installment_id' => 'credit_card_installments',
             'credit_card_statement_id' => 'credit_card_statements',
+        ],
+        'credit_card_payment_surplus_applications' => [
+            'credit_card_id' => 'credit_cards', 'source_statement_id' => 'credit_card_statements',
+            'destination_statement_id' => 'credit_card_statements',
         ],
         'financial_goal_activities' => ['financial_goal_id' => 'financial_goals'],
     ];
@@ -90,6 +101,12 @@ final class ArchiveRecordRestorer
                     foreach ($records as $record) {
                         $oldId = (int) $record->source_id;
                         $data = $this->payload((string) $record->payload, $oldId, $table, $userId);
+                        if ($table === 'credit_card_credit_applications') {
+                            $data['superseded_at'] ??= null;
+                        }
+                        if ($table === 'recurring_card_occurrences') {
+                            $data['purchase_deleted_at'] ??= null;
+                        }
                         if (array_diff($columns, array_keys($data)) !== []) {
                             throw $this->unavailable();
                         }

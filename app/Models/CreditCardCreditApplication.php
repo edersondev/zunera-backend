@@ -7,11 +7,12 @@ namespace App\Models;
 use App\Enums\CreditCards\CreditCardCreditApplicationKind;
 use Database\Factories\CreditCardCreditApplicationFactory;
 use Illuminate\Database\Eloquent\Attributes\Fillable;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 
-#[Fillable(['user_id', 'credit_card_credit_event_id', 'credit_card_id', 'credit_card_installment_id', 'credit_card_statement_id', 'kind', 'amount_centavos', 'applied_at'])]
+#[Fillable(['user_id', 'credit_card_credit_event_id', 'credit_card_id', 'credit_card_installment_id', 'credit_card_statement_id', 'kind', 'amount_centavos', 'applied_at', 'superseded_at'])]
 class CreditCardCreditApplication extends Model
 {
     /** @use HasFactory<CreditCardCreditApplicationFactory> */
@@ -24,6 +25,7 @@ class CreditCardCreditApplication extends Model
             'kind' => CreditCardCreditApplicationKind::class,
             'amount_centavos' => 'integer',
             'applied_at' => 'date:Y-m-d',
+            'superseded_at' => 'datetime',
         ];
     }
 
@@ -49,5 +51,11 @@ class CreditCardCreditApplication extends Model
     public function statement(): BelongsTo
     {
         return $this->belongsTo(CreditCardStatement::class, 'credit_card_statement_id');
+    }
+
+    /** @param Builder<CreditCardCreditApplication> $query */
+    public function scopeActive(Builder $query): void
+    {
+        $query->whereNull('superseded_at');
     }
 }

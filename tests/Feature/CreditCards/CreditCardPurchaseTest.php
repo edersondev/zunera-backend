@@ -64,6 +64,7 @@ final class CreditCardPurchaseTest extends TestCase
             'category_id' => $this->expenseCategory($user)->id,
             'description' => 'Compra no fechamento',
             'purchase_date' => '2026-09-10',
+            'statement_closing_date' => '2026-09-10',
             'total_amount_centavos' => 5_000,
             'installment_count' => 1,
         ], ['Idempotency-Key' => 'closing-day'])
@@ -111,6 +112,7 @@ final class CreditCardPurchaseTest extends TestCase
             'category_id' => $category->id,
             'description' => 'Compra acima do limite',
             'purchase_date' => '2026-09-05',
+            'statement_closing_date' => '2026-09-10',
             'total_amount_centavos' => 150_000,
             'installment_count' => 1,
         ];
@@ -154,6 +156,7 @@ final class CreditCardPurchaseTest extends TestCase
             'category_id' => $category->id,
             'description' => 'Confirmação desatualizada',
             'purchase_date' => '2026-09-05',
+            'statement_closing_date' => '2026-09-10',
             'total_amount_centavos' => 80_000,
             'installment_count' => 1,
             'confirm_over_limit' => true,
@@ -209,6 +212,7 @@ final class CreditCardPurchaseTest extends TestCase
             'category_id' => $this->expenseCategory($user)->id,
             'description' => 'Compra',
             'purchase_date' => '2026-09-05',
+            'statement_closing_date' => '2026-09-10',
             'total_amount_centavos' => 25_000,
             'installment_count' => 1,
         ], ['Idempotency-Key' => 'no-cash-movement'])->assertCreated();
@@ -228,6 +232,7 @@ final class CreditCardPurchaseTest extends TestCase
             'category_id' => $this->expenseCategory($user)->id,
             'description' => 'Compra longa',
             'purchase_date' => '2026-09-05',
+            'statement_closing_date' => '2026-09-10',
             'total_amount_centavos' => 360_00,
             'installment_count' => 360,
         ], ['Idempotency-Key' => 'max-installments'])

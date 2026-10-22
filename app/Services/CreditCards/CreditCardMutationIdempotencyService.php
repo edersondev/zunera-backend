@@ -35,6 +35,9 @@ final class CreditCardMutationIdempotencyService
             $payload = $existing->response_body === null
                 ? []
                 : json_decode((string) $existing->response_body, true, flags: JSON_THROW_ON_ERROR);
+            if (($payload['code'] ?? null) === 'PURCHASE_DELETED') {
+                throw CreditCardStateException::purchaseDeleted();
+            }
 
             return [
                 'target_type' => (string) ($existing->target_type ?? ''),
@@ -70,5 +73,29 @@ final class CreditCardMutationIdempotencyService
         ksort($payload);
 
         return hash('sha256', $operation.'|'.json_encode($payload, JSON_THROW_ON_ERROR));
+    }
+
+    public function assertNoDeletedReplay(int $userId, string $key): void
+    {
+        $body = DB::table('credit_card_mutation_requests')
+            ->where('user_id', $userId)
+            ->where('idempotency_key', $key)
+            ->value('response_body');
+        if ($body !== null && (json_decode((string) $body, true, flags: JSON_THROW_ON_ERROR)['code'] ?? null) === 'PURCHASE_DELETED') {
+            throw CreditCardStateException::purchaseDeleted();
+        }
+    }
+
+    public function scrubPurchaseResponseSnapshots(int $userId, int $purchaseId): void
+    {
+        DB::table('credit_card_mutation_requests')
+            ->where('user_id', $userId)
+            ->where('target_type', 'credit_card_purchase')
+            ->where('target_id', $purchaseId)
+            ->update([
+                'response_status' => 409,
+                'response_body' => json_encode(['code' => 'PURCHASE_DELETED'], JSON_THROW_ON_ERROR),
+                'updated_at' => now(),
+            ]);
     }
 }

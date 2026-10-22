@@ -38,6 +38,7 @@ class RecurringCardOccurrence extends Model
         'failure_code',
         'last_attempt_at',
         'recorded_at',
+        'purchase_deleted_at',
         'dismissed_at',
     ];
 
@@ -56,6 +57,7 @@ class RecurringCardOccurrence extends Model
             'action_claimed_at' => 'datetime',
             'last_attempt_at' => 'datetime',
             'recorded_at' => 'datetime',
+            'purchase_deleted_at' => 'datetime',
             'dismissed_at' => 'datetime',
         ];
     }

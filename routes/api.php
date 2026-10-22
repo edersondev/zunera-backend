@@ -134,10 +134,15 @@ Route::prefix('v1')->group(function (): void {
         Route::patch('/credit-cards/{card_id}', [CreditCardController::class, 'update'])->whereNumber('card_id');
         Route::post('/credit-cards/{card_id}/archive', [CreditCardController::class, 'archive'])->whereNumber('card_id');
         Route::post('/credit-cards/{card_id}/restore', [CreditCardController::class, 'restore'])->whereNumber('card_id');
+        Route::get('/credit-cards/{card_id}/statement-options', [CreditCardPurchaseController::class, 'statementOptions'])->whereNumber('card_id');
         Route::get('/credit-cards/{card_id}/purchases', [CreditCardPurchaseController::class, 'index'])->whereNumber('card_id');
         Route::post('/credit-cards/{card_id}/purchases', [CreditCardPurchaseController::class, 'store'])->whereNumber('card_id');
         Route::get('/credit-card-purchases/{purchase_id}', [CreditCardPurchaseController::class, 'show'])->whereNumber('purchase_id');
         Route::patch('/credit-card-purchases/{purchase_id}', [CreditCardPurchaseController::class, 'update'])->whereNumber('purchase_id');
+        Route::delete('/credit-card-purchases/{purchase_id}', [CreditCardPurchaseController::class, 'destroy'])->whereNumber('purchase_id');
+        Route::post('/credit-card-purchases/{purchase_id}/move-preview', [CreditCardPurchaseController::class, 'movePreview'])->whereNumber('purchase_id');
+        Route::post('/credit-card-purchases/{purchase_id}/move', [CreditCardPurchaseController::class, 'move'])->whereNumber('purchase_id');
+        Route::get('/credit-card-purchases/{purchase_id}/moves', [CreditCardPurchaseController::class, 'moves'])->whereNumber('purchase_id');
         Route::post('/credit-card-purchases/{purchase_id}/credit-events', [CreditCardCreditEventController::class, 'store'])->whereNumber('purchase_id');
         Route::get('/credit-cards/{card_id}/statements', [CreditCardStatementController::class, 'index'])->whereNumber('card_id');
         Route::get('/credit-card-statements/{statement_id}', [CreditCardStatementController::class, 'show'])->whereNumber('statement_id');

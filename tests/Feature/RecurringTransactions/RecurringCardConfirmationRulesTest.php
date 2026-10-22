@@ -93,12 +93,15 @@ final class RecurringCardConfirmationRulesTest extends RecurringTransactionFeatu
             ->assertStatus(409)
             ->assertJsonPath('code', 'OVER_LIMIT_CONFIRMATION_REQUIRED');
 
+        $choice = $this->getJson('/api/v1/credit-cards/'.$rule->credit_card_id.'/statement-options?purchase_date=2026-09-14')
+            ->assertOk()->json('data');
         $this->postJson('/api/v1/credit-cards/'.$rule->credit_card_id.'/purchases', [
             'category_id' => $rule->category_id,
             'description' => 'Intervening charge',
             'purchase_date' => '2026-09-14',
             'total_amount_centavos' => 500,
             'installment_count' => 1,
+            ...($choice['requires_statement_choice'] ? ['statement_closing_date' => $choice['date_derived_closing_date']] : []),
         ], ['Idempotency-Key' => 'intervening-charge'])->assertCreated();
 
         $this->postJson($url, [

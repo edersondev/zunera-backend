@@ -1,15 +1,7 @@
-# Credit-card query-plan evidence
+# Credit card read paths with 1,000 purchases
 
-Captured against the SQLite test database for the 10,000 combined-movement
-regression (5,000 cash transactions plus 5,000 card purchases/installments).
+`CreditCardQueryPerformanceTest` seeds 1,000 owned purchases and installments on one statement. It warms each API 10 times, measures the next 100 requests separately, and asserts each p95 remains below 2,000 ms in the SQLite test database.
 
-| Read shape | Evidence | Decision |
-| --- | --- | --- |
-| Statement installment aggregate by card and statement | `credit_card_installments_card_statement_index` | Existing composite index is used; no new index is warranted. |
-| Card list by owner/status | `credit_cards_owner_status_index` | Existing owner/status index scopes the list before summaries are calculated. |
-| Statement list by card and owner | `credit_card_statements_card_closing_unique` | Existing card/closing index supports the card statement read. |
+The same test inspects SQLite `EXPLAIN QUERY PLAN` for the owner-scoped purchase lookup, exact card/closing-date statement lookup, and ordered installment lookup. Each must report `SEARCH`, so these read paths use indexed lookup instead of scanning all 1,000 purchases or installments. The purchase lookup uses the primary key; statement identity uses the card/closing-date unique index; installment lookup uses the purchase/sequence unique index.
 
-The automated regression asserts the first plan and the two-second response
-budget for card listing, statement detail, and the credit-card dashboard
-projection. Revisit this evidence before adding an index if future query shape
-or production data distribution changes.
+The benchmark measures application response time inside the PHP feature test process. It does not claim production network latency or MySQL timing. The targeted queries remain bounded by card and purchase identity, and the test documents the expected indexes for future query changes.

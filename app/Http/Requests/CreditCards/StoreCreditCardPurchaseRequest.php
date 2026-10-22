@@ -29,6 +29,7 @@ final class StoreCreditCardPurchaseRequest extends FormRequest
             'description' => ['required', 'string', 'min:1', 'max:200'],
             'notes' => ['nullable', 'string', 'max:1000'],
             'purchase_date' => ['required', 'string', 'max:10'],
+            'statement_closing_date' => ['sometimes', 'required', 'string', 'date_format:Y-m-d'],
             'total_amount_centavos' => ['required', 'integer', 'min:'.CreditCardMoney::MIN_AMOUNT_CENTAVOS, 'max:'.CreditCardMoney::MAX_AMOUNT_CENTAVOS],
             'installment_count' => ['required', 'integer', 'min:'.CreditCardMoney::MIN_INSTALLMENT_COUNT, 'max:'.CreditCardMoney::MAX_INSTALLMENT_COUNT],
             'confirm_over_limit' => ['nullable', 'boolean'],
@@ -50,6 +51,7 @@ final class StoreCreditCardPurchaseRequest extends FormRequest
             totalAmountCentavos: (int) $data['total_amount_centavos'],
             installmentCount: (int) $data['installment_count'],
             purchaseDate: CreditCardPurchaseDateRange::normalize($data['purchase_date']),
+            statementClosingDate: $data['statement_closing_date'] ?? null,
             overLimitConfirmed: (bool) ($data['confirm_over_limit'] ?? false),
             confirmedAvailableCreditCentavos: isset($data['expected_available_credit_centavos'])
                 ? (int) $data['expected_available_credit_centavos']

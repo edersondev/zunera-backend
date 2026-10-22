@@ -44,6 +44,7 @@ final class CardOccurrenceResource extends JsonResource
             'actual_amount_centavos' => $occurrence->actual_amount_centavos,
             'actual_purchase_date' => $occurrence->actual_purchase_date?->toDateString(),
             'purchase_id' => $occurrence->purchase?->id,
+            'purchase_deleted_at' => $occurrence->purchase_deleted_at?->toIso8601String(),
             'failure_code' => $occurrence->failure_code,
             'recorded_at' => $occurrence->recorded_at?->toIso8601String(),
             'dismissed_at' => $occurrence->dismissed_at?->toIso8601String(),

@@ -51,4 +51,10 @@ class CreditCardCreditEvent extends Model
     {
         return $this->hasMany(CreditCardCreditApplication::class, 'credit_card_credit_event_id')->orderBy('id');
     }
+
+    /** @return HasMany<CreditCardCreditApplication, $this> */
+    public function activeApplications(): HasMany
+    {
+        return $this->hasMany(CreditCardCreditApplication::class, 'credit_card_credit_event_id')->active()->orderBy('id');
+    }
 }

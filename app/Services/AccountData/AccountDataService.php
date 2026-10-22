@@ -24,10 +24,12 @@ final class AccountDataService
         'credit_cards', 'credit_card_purchases', 'credit_card_statements',
         'credit_card_installments', 'credit_card_statement_payments',
         'credit_card_credit_events', 'credit_card_credit_applications',
+        'credit_card_payment_surplus_applications', 'credit_card_purchase_moves',
         'recurring_card_occurrences', 'financial_goals', 'financial_goal_activities',
     ];
 
     private const DELETE_ORDER = [
+        'credit_card_purchase_moves', 'credit_card_payment_surplus_applications',
         'credit_card_credit_applications', 'credit_card_credit_events',
         'credit_card_installments', 'credit_card_statement_payments',
         'credit_card_purchases', 'recurring_card_occurrences',

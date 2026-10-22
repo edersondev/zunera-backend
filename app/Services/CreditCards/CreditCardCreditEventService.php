@@ -15,6 +15,7 @@ use App\Models\CreditCard;
 use App\Models\CreditCardCreditApplication;
 use App\Models\CreditCardCreditEvent;
 use App\Models\CreditCardInstallment;
+use App\Models\CreditCardPaymentSurplusApplication;
 use App\Models\CreditCardPurchase;
 use App\Models\CreditCardStatement;
 use App\Models\User;
@@ -146,6 +147,63 @@ final class CreditCardCreditEventService
             ->sum('amount_centavos');
 
         return max(0, $total - $credited);
+    }
+
+    /**
+     * Rebuild applications from the current installment placements while retaining
+     * every superseded row as an audit of the original credit allocation.
+     *
+     * @return list<int> Statement IDs whose credit application may have changed.
+     */
+    public function reallocateForCard(CreditCard $card): array
+    {
+        $events = CreditCardCreditEvent::query()
+            ->where('credit_card_id', $card->id)
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+        if ($events->isEmpty()) {
+            return [];
+        }
+
+        $eventIds = $events->pluck('id')->all();
+        $affected = CreditCardCreditApplication::query()
+            ->whereIn('credit_card_credit_event_id', $eventIds)
+            ->active()
+            ->pluck('credit_card_statement_id')
+            ->flip()
+            ->map(fn () => true)
+            ->all();
+
+        CreditCardCreditApplication::query()
+            ->whereIn('credit_card_credit_event_id', $eventIds)
+            ->active()
+            ->update(['superseded_at' => now()]);
+        CreditCardInstallment::query()
+            ->where('credit_card_id', $card->id)
+            ->update(['credit_adjustment_centavos' => 0]);
+        CreditCardPaymentSurplusApplication::query()
+            ->where('credit_card_id', $card->id)
+            ->active()
+            ->update(['superseded_at' => now()]);
+
+        $statements = CreditCardStatement::query()
+            ->where('credit_card_id', $card->id)
+            ->orderBy('closing_date')
+            ->orderBy('id')
+            ->lockForUpdate()
+            ->get();
+        foreach ($statements as $statement) {
+            $this->reconciler->syncStatement($statement, $this->businessDate());
+        }
+
+        foreach ($events as $event) {
+            foreach ($this->applyEvent($event, $card, $event->event_date->toDateString()) as $statementId => $amount) {
+                $affected[$statementId] = true;
+            }
+        }
+
+        return array_map('intval', array_keys($affected));
     }
 
     /**

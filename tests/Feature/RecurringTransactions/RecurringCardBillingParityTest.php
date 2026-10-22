@@ -41,13 +41,19 @@ final class RecurringCardBillingParityTest extends RecurringTransactionFeatureTe
         $automatic = $rule->cardOccurrences()->firstOrFail()->purchase;
         self::assertNotNull($automatic);
 
-        $manualResponse = $this->postJson('/api/v1/credit-cards/'.$manualCard->id.'/purchases', [
+        $options = $this->getJson('/api/v1/credit-cards/'.$manualCard->id.'/statement-options?purchase_date='.$purchaseDate)
+            ->assertOk()->json('data');
+        $manualPayload = [
             'category_id' => $category->id,
             'description' => 'Compra manual equivalente',
             'purchase_date' => $purchaseDate,
             'total_amount_centavos' => $amount,
             'installment_count' => 1,
-        ], ['Idempotency-Key' => 'manual-billing-parity'])->assertCreated();
+        ];
+        if ($options['requires_statement_choice']) {
+            $manualPayload['statement_closing_date'] = $options['date_derived_closing_date'];
+        }
+        $manualResponse = $this->postJson('/api/v1/credit-cards/'.$manualCard->id.'/purchases', $manualPayload, ['Idempotency-Key' => 'manual-billing-parity'])->assertCreated();
         $manual = $manualCard->purchases()->firstOrFail();
 
         $automaticInstallment = $automatic->installments()->with('statement')->firstOrFail();
