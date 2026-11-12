@@ -183,7 +183,7 @@ final class StatementCycleResolver
             throw ValidationException::withMessages([$field => ['Date must fit a four-digit ISO calendar date.']]);
         }
         $parsed = CarbonImmutable::createFromFormat('!Y-m-d', $date, CreditCardMoney::BUSINESS_TIME_ZONE);
-        if ($parsed === false || $parsed->toDateString() !== $date) {
+        if ($parsed === null || $parsed->toDateString() !== $date) {
             throw ValidationException::withMessages([$field => ['Choose a valid calendar date.']]);
         }
 

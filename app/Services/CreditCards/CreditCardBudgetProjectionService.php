@@ -18,19 +18,19 @@ final class CreditCardBudgetProjectionService
 {
     public function __construct(private readonly RecognizedCardExpenseProjection $recognition) {}
 
-    /** @return Collection<int, int> category id => realized centavos */
+    /** @return Collection<int, int<0, max>> category id => realized centavos */
     public function realizedByCategory(User $user, string $from, string $to): Collection
     {
         return $this->byCategory($user, $from, $to, effective: true);
     }
 
-    /** @return Collection<int, int> category id => expected centavos */
+    /** @return Collection<int, int<0, max>> category id => expected centavos */
     public function expectedByCategory(User $user, string $from, string $to): Collection
     {
         return $this->byCategory($user, $from, $to, effective: false);
     }
 
-    /** @return Collection<int, int> */
+    /** @return Collection<int, int<0, max>> */
     private function byCategory(User $user, string $from, string $to, bool $effective): Collection
     {
         $query = DB::query()->fromSub(
@@ -42,6 +42,7 @@ final class CreditCardBudgetProjectionService
             ->groupBy('recognized.category_id')
             ->selectRaw('recognized.category_id as category_id, SUM(recognized.recognized_amount_centavos) as total_centavos')
             ->pluck('total_centavos', 'category_id')
-            ->map(static fn (mixed $total): int => max(0, (int) $total));
+            ->map(static fn (mixed $total): int => max(0, (int) $total))
+            ->mapWithKeys(static fn (int $total, int|string $categoryId): array => [(int) $categoryId => $total]);
     }
 }

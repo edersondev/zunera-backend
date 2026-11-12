@@ -40,7 +40,7 @@ final class CreditCardCreditEventService
         private readonly StatementNotificationProjector $notifications,
     ) {}
 
-    /** @return array{event: CreditCardCreditEvent, card: CreditCard, applications: array<int, int>, replayed: bool} */
+    /** @return array{event: CreditCardCreditEvent, card: CreditCard, applications: array<int, int>, response: array<string, mixed>, replayed: bool} */
     public function record(User $user, CreditCardPurchase $purchase, CreateCreditEventData $data, string $idempotencyKey): array
     {
         return DB::transaction(function () use ($user, $purchase, $data, $idempotencyKey): array {
@@ -118,7 +118,7 @@ final class CreditCardCreditEventService
                 'event' => $event,
                 'card' => $card,
                 'applications' => $result['applications'] ?? [],
-                'response' => $result['response'] ?? [],
+                'response' => $result['response'],
                 'replayed' => $result['replayed'],
             ];
         });

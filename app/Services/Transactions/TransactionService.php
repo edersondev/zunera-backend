@@ -161,7 +161,7 @@ final class TransactionService
                 $locked->financial_account_id = $accountId;
                 $locked->category_id = $categoryId;
                 $locked->recurring_transaction_id = $recurringTransactionId;
-                $locked->recurrence_scheduled_date = $recurrenceScheduledDate;
+                $locked->setAttribute('recurrence_scheduled_date', $recurrenceScheduledDate);
                 $locked->save();
                 if ($account instanceof FinancialAccount) {
                     $account->has_financial_movements = true;
@@ -207,7 +207,7 @@ final class TransactionService
     /** @return array{transaction: Transaction, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool} */
     public function restore(User $user, Transaction $transaction, ?TransactionStatus $requestedStatus, string $idempotencyKey): array
     {
-        return $this->changeLifecycle($user, $transaction, 'restore:'.($requestedStatus?->value ?? 'default'), $idempotencyKey, function (Transaction $locked) use ($requestedStatus): array {
+        return $this->changeLifecycle($user, $transaction, 'restore:'.($requestedStatus->value ?? 'default'), $idempotencyKey, function (Transaction $locked) use ($requestedStatus): array {
             if ($locked->removed_at === null) {
                 throw TransactionStateException::alreadyActive();
             }

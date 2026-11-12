@@ -155,7 +155,7 @@ final class TransferService
 
                 $locked->source_financial_account_id = $sourceId;
                 $locked->destination_financial_account_id = $destinationId;
-                $locked->transfer_date = $date;
+                $locked->setAttribute('transfer_date', $date);
                 if ($data->has('amount_centavos')) {
                     $locked->amount_centavos = (int) $data->changes['amount_centavos'];
                 }
@@ -207,7 +207,7 @@ final class TransferService
     /** @return array{transfer: Transfer, status: int, meta: array<string, mixed>, response: array<string, mixed>, replayed: bool} */
     public function restore(User $user, Transfer $transfer, ?TransferStatus $requestedStatus, string $idempotencyKey): array
     {
-        return $this->changeLifecycle($user, $transfer, 'restore:'.($requestedStatus?->value ?? 'default'), $idempotencyKey, function (Transfer $locked) use ($requestedStatus): array {
+        return $this->changeLifecycle($user, $transfer, 'restore:'.($requestedStatus->value ?? 'default'), $idempotencyKey, function (Transfer $locked) use ($requestedStatus): array {
             if ($locked->removed_at === null) {
                 throw TransferStateException::alreadyActive();
             }

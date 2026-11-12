@@ -200,7 +200,7 @@ final class CreditCardService
         return $this->findOwned($user, $cardId);
     }
 
-    /** @param array<string, mixed> $changes @return array<string, mixed> */
+    /** @return array<string, mixed> */
     private function mutableAttributes(UpdateCreditCardData $data): array
     {
         return $data->changes;

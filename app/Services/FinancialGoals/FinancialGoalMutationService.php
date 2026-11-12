@@ -173,7 +173,7 @@ final class FinancialGoalMutationService
             if ($type === 'withdrawn' && $amount > $allocated) {
                 throw FinancialGoalStateException::conflict('goal_withdrawal_exceeds_allocation', 'Withdrawal exceeds the goal allocation.');
             }
-            $this->activity($goal, $type, $amount, $account?->id, $account?->name ?? $goal->account_name_snapshot);
+            $this->activity($goal, $type, $amount, $account?->id, $account->name ?? $goal->account_name_snapshot);
             app(GoalMilestoneProjector::class)->capture($goal);
 
             return ['goal_id' => $goalId, 'status' => 200, 'body' => ['data' => $this->query->project($goal)]];

@@ -253,10 +253,10 @@ final class FinancialHistoryService
     }
 
     /**
-     * @param  Collection<int, object>  $keys
+     * @param  Collection<int, \stdClass>  $keys
      * @return array<int, array<string, mixed>>
      */
-    private function entriesFor(User $user, $keys): array
+    private function entriesFor(User $user, Collection $keys): array
     {
         $transactionIds = $keys->where('entry_source', 'transaction')->pluck('movement_id')->all();
         $transferIds = $keys->where('entry_source', 'transfer')->pluck('movement_id')->all();
@@ -373,7 +373,12 @@ final class FinancialHistoryService
                     $right->id,
                 );
             })
-            ->map(fn (RecurringTransaction $rule): array => (new FinancialHistoryResource($rule))->resolve())
+            ->map(function (RecurringTransaction $rule): array {
+                /** @var array<string, mixed> $entry */
+                $entry = (new FinancialHistoryResource($rule))->resolve();
+
+                return $entry;
+            })
             ->values();
     }
 

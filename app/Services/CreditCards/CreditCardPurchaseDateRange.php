@@ -35,7 +35,7 @@ final class CreditCardPurchaseDateRange
 
         $date = CarbonImmutable::createFromFormat('!Y-m-d', $normalized, CreditCardMoney::BUSINESS_TIME_ZONE);
 
-        if ($date === false || $date->toDateString() !== $normalized) {
+        if ($date === null || $date->toDateString() !== $normalized) {
             throw ValidationException::withMessages([$field => ['Use a valid calendar date.']]);
         }
 

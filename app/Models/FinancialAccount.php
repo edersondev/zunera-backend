@@ -37,7 +37,7 @@ class FinancialAccount extends Model
     protected static function booted(): void
     {
         static::creating(function (FinancialAccount $account): void {
-            if ($account->name !== null) {
+            if ($account->getAttribute('name') !== null) {
                 $account->normalized_name = FinancialAccountNameNormalizer::normalize((string) $account->name);
             }
         });

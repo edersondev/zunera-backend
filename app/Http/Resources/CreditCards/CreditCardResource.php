@@ -12,7 +12,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
 /** @mixin CreditCard */
-final class CreditCardResource extends JsonResource
+class CreditCardResource extends JsonResource
 {
     /** @return array<string, mixed> */
     public function toArray(Request $request): array

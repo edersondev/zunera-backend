@@ -51,7 +51,7 @@ final class StoreCreditCardRequest extends FormRequest
             userId: (int) $this->user()->id,
             name: trim((string) $data['name']),
             institutionName: trim((string) $data['institution_name']),
-            lastFour: isset($data['last_four']) && $data['last_four'] !== null ? (string) $data['last_four'] : null,
+            lastFour: isset($data['last_four']) ? (string) $data['last_four'] : null,
             color: CreditCardVisualOptions::color(isset($data['color']) ? (string) $data['color'] : null),
             icon: CreditCardVisualOptions::icon(isset($data['icon']) ? (string) $data['icon'] : null),
             creditLimitCentavos: (int) $data['credit_limit_centavos'],

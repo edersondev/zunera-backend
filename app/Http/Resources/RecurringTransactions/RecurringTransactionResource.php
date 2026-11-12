@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\RecurringTransactions;
 
+use App\Models\CreditCard;
+use App\Models\FinancialAccount;
 use App\Models\RecurringTransaction;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
@@ -16,6 +18,10 @@ final class RecurringTransactionResource extends JsonResource
     {
         /** @var RecurringTransaction $rule */
         $rule = $this->resource;
+        /** @var FinancialAccount|null $financialAccount */
+        $financialAccount = $rule->financialAccount;
+        /** @var CreditCard|null $creditCard */
+        $creditCard = $rule->creditCard;
 
         return [
             'id' => $rule->id,
@@ -30,17 +36,17 @@ final class RecurringTransactionResource extends JsonResource
             'end_date' => $rule->endDateOrNull(),
             'state' => $rule->state->value,
             'paused_reason' => $rule->paused_reason?->value,
-            'financial_account' => $rule->financialAccount?->id !== null ? [
-                'id' => $rule->financialAccount?->id,
-                'name' => $rule->financialAccount?->name,
-                'status' => $rule->financialAccount?->status->value,
+            'financial_account' => $financialAccount?->id !== null ? [
+                'id' => $financialAccount->id,
+                'name' => $financialAccount->name,
+                'status' => $financialAccount->status->value,
             ] : null,
-            'credit_card' => $rule->creditCard?->id !== null ? [
-                'id' => $rule->creditCard?->id,
-                'name' => $rule->creditCard?->name,
-                'institution_name' => $rule->creditCard?->institution_name,
-                'last_four' => $rule->creditCard?->last_four,
-                'status' => $rule->creditCard?->status->value,
+            'credit_card' => $creditCard?->id !== null ? [
+                'id' => $creditCard->id,
+                'name' => $creditCard->name,
+                'institution_name' => $creditCard->institution_name,
+                'last_four' => $creditCard->last_four,
+                'status' => $creditCard->status->value,
             ] : null,
             'generation_mode' => $rule->generationModeOrAutomatic()?->value,
             'category' => [

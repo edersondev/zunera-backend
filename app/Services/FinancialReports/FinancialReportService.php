@@ -300,7 +300,13 @@ final class FinancialReportService
         return ['amount_centavos' => $amount, 'currency_code' => 'BRL'];
     }
 
-    /** @template T @param array<string, array{status: string, message: ?string}> $states @param callable(): T $read @return T|null */
+    /**
+     * @template T
+     *
+     * @param  array<string, array{status: string, message: ?string}>  $states
+     * @param  callable(): T  $read
+     * @return T|null
+     */
     private function section(array &$states, string $name, callable $read): mixed
     {
         try {

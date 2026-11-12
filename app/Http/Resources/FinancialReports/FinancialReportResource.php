@@ -7,7 +7,6 @@ namespace App\Http\Resources\FinancialReports;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 
-/** @mixin array<string, mixed> */
 final class FinancialReportResource extends JsonResource
 {
     /** @return array<string, mixed> */

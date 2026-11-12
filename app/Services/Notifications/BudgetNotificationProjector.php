@@ -104,7 +104,7 @@ final class BudgetNotificationProjector
         $item = $calculation?->plans[$planId] ?? null;
         $stage = $item === null ? null : $this->stage($item->status);
         foreach (self::STAGES as $index => $type) {
-            $candidate = $this->candidate($plan, $type, CarbonImmutable::now(), $item?->realizedCentavos ?? 0, $item?->plannedCentavos ?? (int) $plan->planned_amount_centavos, (string) $plan->category_name_snapshot);
+            $candidate = $this->candidate($plan, $type, CarbonImmutable::now(), $item->realizedCentavos ?? 0, $item->plannedCentavos ?? (int) $plan->planned_amount_centavos, (string) $plan->category_name_snapshot);
             if ($type === $stage) {
                 $this->events->qualify($candidate, $this->preferences->enabledAt($userId, 'budgets', CarbonImmutable::now()));
             } elseif ($stage !== null && $index < array_search($stage, self::STAGES, true)) {

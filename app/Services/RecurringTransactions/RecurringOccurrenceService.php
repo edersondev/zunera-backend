@@ -155,7 +155,7 @@ final class RecurringOccurrenceService
         }
 
         if ($rule->schedule_cursor->toDateString() < $today) {
-            $rule->schedule_cursor = $today;
+            $rule->setAttribute('schedule_cursor', $today);
         }
         if ($expired) {
             $rule->state = RecurrenceState::Ended;
@@ -198,7 +198,7 @@ final class RecurringOccurrenceService
                 return;
             }
             if ($locked->schedule_cursor->toDateString() < $today) {
-                $locked->schedule_cursor = $today;
+                $locked->setAttribute('schedule_cursor', $today);
             }
             if ($expired) {
                 $locked->state = RecurrenceState::Ended;
@@ -306,7 +306,7 @@ final class RecurringOccurrenceService
                 'last_four' => $card?->last_four,
                 'status' => $card?->status?->value,
             ],
-            'category_name_snapshot' => $category?->name ?? '',
+            'category_name_snapshot' => $category->name ?? '',
             'state' => CardOccurrenceState::Expected,
         ]);
 
@@ -320,7 +320,7 @@ final class RecurringOccurrenceService
     private function advanceCursor(RecurringTransaction $rule, string $scheduledDate): void
     {
         if ($rule->schedule_cursor->toDateString() < $scheduledDate) {
-            $rule->schedule_cursor = $scheduledDate;
+            $rule->setAttribute('schedule_cursor', $scheduledDate);
             $rule->save();
         }
     }

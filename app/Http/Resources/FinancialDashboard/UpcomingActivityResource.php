@@ -14,7 +14,7 @@ use Illuminate\Http\Resources\Json\JsonResource;
  * @property array{
  *     from: string,
  *     to: string,
- *     items: list<array{source_kind: string, expected_date: string, type: string, amount_centavos: int, currency_code: string, account: FinancialAccount, category: Category, description: string}>
+ *     items: list<array{source_kind: string, expected_date: string, type: string, amount_centavos: int, currency_code: string, account: FinancialAccount|null, credit_card?: CreditCard|null, category: Category|null, description: string, destination_type?: string, recurring_transaction_id?: int, occurrence_id?: int, state?: string, position: array{int, int}}>
  * } $resource
  */
 final class UpcomingActivityResource extends JsonResource
@@ -29,7 +29,7 @@ final class UpcomingActivityResource extends JsonResource
                 'type' => $item['type'],
                 'amount' => MoneyResource::shape((int) $item['amount_centavos'], (string) $item['currency_code']),
                 'account' => DashboardAccountResource::shape($item['account']),
-                'credit_card' => isset($item['credit_card']) && $item['credit_card'] instanceof CreditCard
+                'credit_card' => ($item['credit_card'] ?? null) instanceof CreditCard
                     ? [
                         'id' => (int) $item['credit_card']->id,
                         'name' => (string) $item['credit_card']->name,

@@ -46,7 +46,7 @@ final class RecentActivityResource extends JsonResource
             'account' => null,
             'credit_card' => [
                 'id' => (int) $purchase->credit_card_id,
-                'name' => $purchase->creditCard?->name ?? $purchase->card_name_snapshot,
+                'name' => $purchase->creditCard->name ?? $purchase->card_name_snapshot,
                 'status' => $purchase->creditCard?->status->value,
             ],
             'category' => DashboardCategoryResource::shape($purchase->category),

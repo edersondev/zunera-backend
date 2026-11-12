@@ -25,7 +25,7 @@ final class RecurringCardExpenseProjection
             ->value('total_centavos');
     }
 
-    /** @return Collection<int, object> */
+    /** @return Collection<int, \stdClass> */
     public function byCategory(User $user, string $from, string $to): Collection
     {
         return $this->installments($user, $from, $to)
@@ -36,7 +36,7 @@ final class RecurringCardExpenseProjection
             ->get();
     }
 
-    /** @return Collection<int, object> */
+    /** @return Collection<int, \stdClass> */
     public function byDate(User $user, string $from, string $to): Collection
     {
         return $this->installments($user, $from, $to)

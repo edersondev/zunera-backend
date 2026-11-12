@@ -177,7 +177,7 @@ final class BudgetCalculationService
      * source; both sides stay in exact centavos and are summed per category.
      *
      * @param  Collection<int, int>  $base
-     * @param  Collection<int, int>  $cardTotals
+     * @param  Collection<int, int<0, max>>  $cardTotals
      * @return Collection<int, int>
      */
     private function mergeCategoryTotals(Collection $base, Collection $cardTotals): Collection

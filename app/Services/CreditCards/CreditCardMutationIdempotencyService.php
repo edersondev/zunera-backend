@@ -17,7 +17,7 @@ final class CreditCardMutationIdempotencyService
 {
     /**
      * @param  callable(): array{target_type: string, target_id: int, status: int, response: array<string, mixed>}  $mutation
-     * @return array{target_type: string, target_id: int, status: int, response: array<string, mixed>, replayed: bool}
+     * @return array{target_type: string, target_id: int, status: int, response: array<string, mixed>, applications?: array<int, int>, replayed: bool}
      */
     public function run(int $userId, string $key, string $operation, string $fingerprint, callable $mutation): array
     {

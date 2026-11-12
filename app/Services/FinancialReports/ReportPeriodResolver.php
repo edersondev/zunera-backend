@@ -136,7 +136,7 @@ final class ReportPeriodResolver
         }
 
         $parsed = CarbonImmutable::createFromFormat('!Y-m-d', $date, self::BUSINESS_TIMEZONE);
-        if ($parsed === false || $parsed->toDateString() !== $date) {
+        if ($parsed === null || $parsed->toDateString() !== $date) {
             throw new InvalidArgumentException('Report date must be a valid ISO calendar date.');
         }
 

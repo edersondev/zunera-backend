@@ -274,7 +274,7 @@ final class CreditCardPurchaseService
             $lockedOccurrence->recorded_at = now();
             $lockedOccurrence->last_attempt_at = now();
             $lockedOccurrence->actual_amount_centavos = $amountCentavos;
-            $lockedOccurrence->actual_purchase_date = $purchaseDate;
+            $lockedOccurrence->setAttribute('actual_purchase_date', $purchaseDate);
             $lockedOccurrence->failure_code = null;
             $lockedOccurrence->action_claim_key = null;
             $lockedOccurrence->action_claimed_at = null;

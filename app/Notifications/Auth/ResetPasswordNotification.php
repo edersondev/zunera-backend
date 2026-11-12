@@ -36,7 +36,7 @@ final class ResetPasswordNotification extends Notification implements ShouldQueu
 
     public function toMail(object $notifiable): MailMessage
     {
-        $url = rtrim((string) config('app.frontend_url', env('FRONTEND_URL', 'http://localhost:5173')), '/')
+        $url = rtrim((string) config('app.frontend_url'), '/')
             .'/reset-password?token='.urlencode($this->token)
             .'&email='.urlencode((string) $notifiable->getEmailForPasswordReset());
 

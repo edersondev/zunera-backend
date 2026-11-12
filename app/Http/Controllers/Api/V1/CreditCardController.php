@@ -75,7 +75,7 @@ final class CreditCardController extends Controller
         return $this->mutationResponse($result);
     }
 
-    /** @param array{target_type: string, target_id: int, status: int, response: array<string, mixed>, replayed: bool} $result */
+    /** @param array{target_type: string, target_id: int, status: int, response: array<string, mixed>, replayed: bool, card?: ?CreditCard} $result */
     private function mutationResponse(array $result): JsonResponse
     {
         if ($result['replayed']) {

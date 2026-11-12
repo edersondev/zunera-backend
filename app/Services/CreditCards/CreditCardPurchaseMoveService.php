@@ -94,7 +94,7 @@ final class CreditCardPurchaseMoveService
                     $recognitionDates[$source->closing_date->toDateString()] = true;
                     $recognitionDates[$destination->closing_date->toDateString()] = true;
                     $installment->credit_card_statement_id = $destination->id;
-                    $installment->recognition_date = $destinationCycle->closingDate;
+                    $installment->setAttribute('recognition_date', $destinationCycle->closingDate);
                     $installment->save();
 
                     $moved[] = CreditCardPurchaseMove::query()->create([

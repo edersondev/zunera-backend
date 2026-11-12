@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace App\Http\Resources\Notifications;
 
+use App\Models\NotificationEvent;
 use App\Services\Notifications\NotificationSourceResolver;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
 use Illuminate\Support\Facades\App;
 
+/** @mixin NotificationEvent */
 final class NotificationResource extends JsonResource
 {
     /** @return array<string, mixed> */
@@ -37,6 +39,7 @@ final class NotificationResource extends JsonResource
                 'recurring_card_occurrence' => 'recurring_card_purchases',
                 'budget_plan' => 'budgets',
                 'goal' => 'financial_goals',
+                default => throw new \UnhandledMatchError,
             },
             'event_at' => $this->event_at->toIso8601String(),
             'created_at' => $this->created_at->toIso8601String(),

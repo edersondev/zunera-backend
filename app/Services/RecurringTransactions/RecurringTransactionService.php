@@ -167,7 +167,7 @@ final class RecurringTransactionService
         ]);
     }
 
-    /** @return LengthAwarePaginator<int, Transaction|RecurringCardOccurrence> */
+    /** @return LengthAwarePaginator<int, Transaction>|LengthAwarePaginator<int, RecurringCardOccurrence> */
     public function listOccurrences(User $user, RecurringTransaction $rule, int $page, int $perPage): LengthAwarePaginator
     {
         $owned = $this->findOwned($user, (int) $rule->id);
@@ -272,7 +272,7 @@ final class RecurringTransactionService
                 $locked->financial_account_id = $accountId;
                 $locked->credit_card_id = $cardId;
                 $locked->category_id = $categoryId;
-                $locked->start_date = $startDate;
+                $locked->setAttribute('start_date', $startDate);
                 $locked->end_date = $endDate;
                 if ($data->has('start_date')) {
                     // A start-date edit only changes future scheduling. Reset the
@@ -280,8 +280,8 @@ final class RecurringTransactionService
                     // start) so an earlier edit cannot backfill elapsed dates and
                     // a later edit waits for its new anchor.
                     $scheduleAnchor = max($startDate, RecurringDateRange::businessDate());
-                    $locked->eligibility_starts_on = $scheduleAnchor;
-                    $locked->schedule_cursor = $scheduleAnchor;
+                    $locked->setAttribute('eligibility_starts_on', $scheduleAnchor);
+                    $locked->setAttribute('schedule_cursor', $scheduleAnchor);
                 }
                 if ($endDate !== null && $endDate < RecurringDateRange::businessDate()) {
                     $locked->state = RecurrenceState::Ended;
@@ -358,7 +358,7 @@ final class RecurringTransactionService
 
             $locked->state = RecurrenceState::Active;
             $locked->paused_reason = null;
-            $locked->schedule_cursor = max($locked->schedule_cursor->toDateString(), $businessDate);
+            $locked->setAttribute('schedule_cursor', max($locked->schedule_cursor->toDateString(), $businessDate));
             $locked->save();
 
             return ['recurring_transaction_id' => $locked->id, 'status' => 200];
@@ -442,7 +442,11 @@ final class RecurringTransactionService
         });
     }
 
-    /** Adds the derived next-date and occurrence-count projections used by list and detail responses. */
+    /**
+     * Adds the derived next-date and occurrence-count projections used by list and detail responses.
+     *
+     * @param  Collection<int, RecurringTransaction>  $rules
+     */
     public function decorateForProjection(Collection $rules): void
     {
         if ($rules->isEmpty()) {

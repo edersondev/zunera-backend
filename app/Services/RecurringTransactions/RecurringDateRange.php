@@ -25,7 +25,7 @@ final class RecurringDateRange
         foreach ($formats as $format) {
             try {
                 $date = CarbonImmutable::createFromFormat($format, $value);
-                if ($date !== false && $date->format(substr($format, 1)) === $value) {
+                if ($date !== null && $date->format(substr($format, 1)) === $value) {
                     $normalized = $date->toDateString();
 
                     if ($normalized >= self::MIN_DATE && $normalized <= self::MAX_DATE) {

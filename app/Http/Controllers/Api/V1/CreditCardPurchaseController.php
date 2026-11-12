@@ -139,7 +139,7 @@ final class CreditCardPurchaseController extends Controller
         return (new CreditCardPurchaseDeleteResource($result['response']['data']))->response()->setStatusCode($result['status']);
     }
 
-    /** @param array{target_type: string, target_id: int, status: int, response: array<string, mixed>, replayed: bool} $result */
+    /** @param array{target_type: string, target_id: int, status: int, response: array<string, mixed>, replayed: bool, purchase?: CreditCardPurchase} $result */
     private function mutationResponse(array $result): JsonResponse
     {
         if ($result['replayed']) {

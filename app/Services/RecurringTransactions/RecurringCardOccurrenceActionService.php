@@ -182,7 +182,7 @@ final class RecurringCardOccurrenceActionService
             }
 
             $locked->actual_amount_centavos = $amount;
-            $locked->actual_purchase_date = $date;
+            $locked->setAttribute('actual_purchase_date', $date);
             $locked->credit_card_id_override = $data->creditCardId !== null ? $data->creditCardId : $locked->credit_card_id_override;
             $locked->category_id_override = $data->categoryId !== null ? $data->categoryId : $locked->category_id_override;
             $locked->action_claim_key = Str::random(32);

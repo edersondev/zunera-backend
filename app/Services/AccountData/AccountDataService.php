@@ -72,6 +72,7 @@ final class AccountDataService
     {
         $result = DB::transaction(function () use ($user, $archiveId): array {
             $this->lockUser($user);
+            /** @var object{record_count: int|string}|null $archive */
             $archive = DB::table('financial_data_archives')
                 ->where('user_id', $user->id)->lockForUpdate()->find($archiveId);
             if ($archive === null) {
@@ -274,6 +275,7 @@ final class AccountDataService
     /** @return array{id: int, created_at: string, record_count: int} */
     private function archiveMetadata(int $archiveId): array
     {
+        /** @var object{id: int|string, created_at: string, record_count: int|string} $archive */
         $archive = DB::table('financial_data_archives')->find($archiveId);
 
         return [

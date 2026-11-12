@@ -24,7 +24,7 @@ class Category extends Model
     protected static function booted(): void
     {
         static::creating(function (Category $category): void {
-            if ($category->name !== null) {
+            if ($category->getAttribute('name') !== null) {
                 $category->normalized_name = CategoryNameNormalizer::normalize((string) $category->name);
             }
         });

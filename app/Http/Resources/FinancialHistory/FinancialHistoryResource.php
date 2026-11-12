@@ -72,7 +72,7 @@ final class FinancialHistoryResource extends JsonResource
             'financial_account' => null,
             'category' => [
                 'id' => $purchase->category?->id,
-                'name' => $purchase->category?->name ?? $purchase->category_name_snapshot,
+                'name' => $purchase->category->name ?? $purchase->category_name_snapshot,
                 'classification' => $purchase->category?->classification->value ?? 'expense',
                 'status' => $purchase->category?->status->value ?? $purchase->category_status_snapshot,
             ],

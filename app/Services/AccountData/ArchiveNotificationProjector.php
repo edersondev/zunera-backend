@@ -33,6 +33,7 @@ final class ArchiveNotificationProjector
 
         $today = CarbonImmutable::now('America/Sao_Paulo');
         foreach ($ids['monthly_budgets'] ?? [] as $id) {
+            /** @var object{budget_year: int|string, budget_month: int|string} $budget */
             $budget = DB::table('monthly_budgets')->find($id);
             if ((int) $budget->budget_year === $today->year && (int) $budget->budget_month === $today->month) {
                 $this->budgets->captureMonth($userId, $today->year, $today->month);

@@ -22,7 +22,7 @@ final class CardOccurrenceResource extends JsonResource
 
         return [
             'id' => $occurrence->id,
-            'scheduled_date' => $occurrence->scheduled_date?->toDateString(),
+            'scheduled_date' => $occurrence->scheduled_date->toDateString(),
             'state' => $occurrence->state->value,
             'generation_mode' => $occurrence->generation_mode_snapshot->value,
             'scheduled_amount_centavos' => $occurrence->scheduled_amount_centavos,
@@ -74,7 +74,7 @@ final class CardOccurrenceResource extends JsonResource
 
         return [
             'id' => $occurrence->category_id_override ?? $occurrence->category_id_original,
-            'name' => $category?->name ?? $occurrence->category_name_snapshot,
+            'name' => $category->name ?? $occurrence->category_name_snapshot,
         ];
     }
 }
