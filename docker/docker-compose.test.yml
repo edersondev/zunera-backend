@@ -1,11 +1,4 @@
-name: zunera-backend
-
 services:
-  scheduler:
-    depends_on:
-      dbmysql_test:
-        condition: service_healthy
-
   dbmysql_test:
     image: mysql:8.4
     environment:
@@ -13,15 +6,8 @@ services:
       - MYSQL_DATABASE=dbzunera_test
       - MYSQL_USER=dbusersm_test
       - MYSQL_PASSWORD=1234x
-    ports:
-      - "3308:3306"
-    volumes:
-      - appdb-test:/var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p123456x"]
       interval: 5s
       timeout: 5s
       retries: 20
-
-volumes:
-  appdb-test:
