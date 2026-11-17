@@ -6,6 +6,8 @@ services:
       - MYSQL_DATABASE=dbzunera_test
       - MYSQL_USER=dbusersm_test
       - MYSQL_PASSWORD=1234x
+    tmpfs:
+      - /var/lib/mysql
     healthcheck:
       test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p123456x"]
       interval: 5s
