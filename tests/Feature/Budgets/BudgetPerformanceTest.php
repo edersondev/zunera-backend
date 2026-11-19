@@ -41,7 +41,7 @@ final class BudgetPerformanceTest extends TestCase
         $elapsed = microtime(true) - $startedAt;
 
         self::assertLessThan(2.0, $elapsed, 'Budget month read took '.$elapsed.' seconds.');
-        self::assertStringContainsString('INDEX', $this->aggregateQueryPlan(), 'The budget aggregate should use an index rather than a full scan.');
+        self::assertTrue($this->aggregateUsesIndex($user->id), 'The budget aggregate should use an index rather than a full scan.');
     }
 
     private function seedMovements(User $user, FinancialAccount $account, Category $food, Category $transport, int $total): void
@@ -81,13 +81,17 @@ final class BudgetPerformanceTest extends TestCase
         }
 
         self::assertSame($total, Transaction::query()->where('user_id', $user->id)->count());
-        self::assertTrue(MonthlyBudget::query()->whereKey(1)->exists());
+        self::assertTrue(MonthlyBudget::query()->where('user_id', $user->id)->exists());
     }
 
-    private function aggregateQueryPlan(): string
+    private function aggregateUsesIndex(int $userId): bool
     {
-        $plan = DB::select('EXPLAIN QUERY PLAN SELECT category_id, SUM(amount_centavos) as total_centavos FROM transactions WHERE user_id = 1 AND type = ? AND status = ? AND removed_at IS NULL AND date(transaction_date) >= ? AND date(transaction_date) <= ? GROUP BY category_id', ['expense', 'effective', '2026-09-01', '2026-09-30']);
+        $isMySql = DB::getDriverName() === 'mysql';
+        $explain = $isMySql ? 'EXPLAIN ' : 'EXPLAIN QUERY PLAN ';
+        $plan = DB::select($explain.'SELECT category_id, SUM(amount_centavos) as total_centavos FROM transactions WHERE user_id = ? AND type = ? AND status = ? AND removed_at IS NULL AND date(transaction_date) >= ? AND date(transaction_date) <= ? GROUP BY category_id', [$userId, 'expense', 'effective', '2026-09-01', '2026-09-30']);
 
-        return json_encode($plan, JSON_THROW_ON_ERROR);
+        return $isMySql
+            ? $plan[0]->key !== null
+            : str_contains($plan[0]->detail, 'INDEX');
     }
 }

@@ -70,7 +70,7 @@ final class CreditEventRecognitionTest extends TestCase
         ], ['Idempotency-Key' => 'multi-recognition'])->assertCreated();
 
         $rows = $this->recognizedRows($user->id, '2026-08-01', '2026-10-31')->sortBy('sequence')->values();
-        self::assertSame([0, 1_667, 3_333], $rows->pluck('recognized_amount_centavos')->map(intval(...))->all());
+        self::assertSame([0, 1_667, 3_333], $rows->pluck('recognized_amount_centavos')->map(static fn ($amount): int => (int) $amount)->all());
         self::assertSame(5_000, $rows->sum('recognized_amount_centavos'));
     }
 

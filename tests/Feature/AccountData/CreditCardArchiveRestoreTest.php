@@ -36,7 +36,7 @@ final class CreditCardArchiveRestoreTest extends TestCase
         ], ['Idempotency-Key' => 'move-before-archive'])->assertOk();
 
         self::assertSame(1, CreditCardPurchaseMove::query()->where('user_id', $user->id)->count());
-        self::assertSame(10_000, CreditCardPaymentSurplusApplication::query()->active()
+        self::assertSame(10_000, (int) CreditCardPaymentSurplusApplication::query()->active()
             ->where('user_id', $user->id)->sum('amount_centavos'));
         self::assertSame(0, $this->cardSummary($card)['card_credit_centavos']);
 

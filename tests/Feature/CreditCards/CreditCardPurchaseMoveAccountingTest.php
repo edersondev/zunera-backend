@@ -122,7 +122,7 @@ final class CreditCardPurchaseMoveAccountingTest extends TestCase
         $first->refresh();
         self::assertNotSame($oldStatement->id, $first->credit_card_statement_id);
         self::assertNotNull($application->refresh()->superseded_at);
-        self::assertSame(5_000, CreditCardCreditApplication::query()->active()->where('credit_card_installment_id', $first->id)->sum('amount_centavos'));
+        self::assertSame(5_000, (int) CreditCardCreditApplication::query()->active()->where('credit_card_installment_id', $first->id)->sum('amount_centavos'));
         self::assertSame($first->credit_card_statement_id, CreditCardCreditApplication::query()->active()->where('credit_card_installment_id', $first->id)->firstOrFail()->credit_card_statement_id);
         self::assertSame(0, $oldStatement->refresh()->credit_adjustment_centavos);
         self::assertSame(5_000, $first->statement->refresh()->credit_adjustment_centavos);

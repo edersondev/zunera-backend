@@ -113,7 +113,8 @@ final class FinancialGoalQueryService
         return [
             'remaining_centavos' => max($target - $allocated, 0),
             'excess_centavos' => max($allocated - $target, 0),
-            'progress_percentage' => $allocated / $target * 100,
+            // Keep idempotent response snapshots stable across JSON storage engines.
+            'progress_percentage' => round($allocated / $target * 100, 12),
         ];
     }
 

@@ -18,6 +18,16 @@ final class FinancialReportConcurrentSnapshotTest extends TestCase
     use DatabaseTruncation;
     use FinancialReportFixtures;
 
+    protected function tearDown(): void
+    {
+        if (DB::getDriverName() === 'mysql') {
+            // DatabaseTruncation clears before each test; later RefreshDatabase tests need a clean baseline.
+            $this->truncateTablesForAllConnections();
+        }
+
+        parent::tearDown();
+    }
+
     #[Test]
     public function overview_sections_and_revision_share_one_source_state_during_a_write(): void
     {
