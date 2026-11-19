@@ -11,14 +11,14 @@ use App\Models\RecurringCardOccurrence;
 use App\Models\RecurringTransaction;
 use App\Services\RecurringTransactions\RecurringCardOccurrenceActionService;
 use App\Services\RecurringTransactions\RecurringOccurrenceService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Event;
 use PHPUnit\Framework\Attributes\Test;
 use Tests\Support\OverlappingCardAttempts;
+use Tests\Support\UsesCommittedMySqlTestDatabase;
 
 final class RecurringCardAutomaticOccurrenceActionsTest extends RecurringTransactionFeatureTestCase
 {
-    use RefreshDatabase;
+    use UsesCommittedMySqlTestDatabase;
 
     #[Test]
     public function retry_propagates_a_concurrent_state_conflict_without_marking_the_occurrence_failed(): void
@@ -81,7 +81,7 @@ final class RecurringCardAutomaticOccurrenceActionsTest extends RecurringTransac
     #[Test]
     public function one_hundred_overlapping_automatic_decisions_cannot_duplicate_a_purchase(): void
     {
-        OverlappingCardAttempts::inIsolatedDatabase(function (string $database): void {
+        OverlappingCardAttempts::inMySqlTestDatabase(function (string $database): void {
             [$rule, $occurrence] = $this->awaitingOccurrence();
             $result = OverlappingCardAttempts::race($database, 'automatic', $rule->user_id, $rule->id, $occurrence->id);
 

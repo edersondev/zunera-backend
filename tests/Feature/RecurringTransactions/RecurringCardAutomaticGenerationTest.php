@@ -14,20 +14,20 @@ use App\Models\Transaction;
 use App\Models\User;
 use App\Services\RecurringTransactions\RecurringOccurrenceService;
 use DateTimeImmutable;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Tests\Support\OverlappingCardAttempts;
+use Tests\Support\UsesCommittedMySqlTestDatabase;
 
 final class RecurringCardAutomaticGenerationTest extends RecurringTransactionFeatureTestCase
 {
-    use RefreshDatabase;
+    use UsesCommittedMySqlTestDatabase;
 
     #[Test]
     public function one_rule_date_survives_one_hundred_overlapping_generation_attempts(): void
     {
-        OverlappingCardAttempts::inIsolatedDatabase(function (string $database): void {
+        OverlappingCardAttempts::inMySqlTestDatabase(function (string $database): void {
             $user = User::factory()->create();
             $card = $this->ownedCard($user);
             $category = $this->ownedCategory($user);

@@ -4,7 +4,7 @@ declare(strict_types=1);
 
 namespace Tests\Support;
 
-use Illuminate\Support\Facades\Artisan;
+use Dotenv\Dotenv;
 use Illuminate\Support\Facades\DB;
 use RuntimeException;
 use Symfony\Component\Process\Process;
@@ -12,28 +12,24 @@ use Symfony\Component\Process\Process;
 final class OverlappingCardAttempts
 {
     /** @template T @param callable(string): T $run @return T */
-    public static function inIsolatedDatabase(callable $run): mixed
+    public static function inMySqlTestDatabase(callable $run): mixed
     {
-        $path = tempnam(sys_get_temp_dir(), 'card-overlap-');
-        if ($path === false) {
-            throw new RuntimeException('Could not create concurrency test database.');
+        return $run(self::assertTestDatabase());
+    }
+
+    public static function assertTestDatabase(): string
+    {
+        $testingEnvironment = Dotenv::parse(file_get_contents(base_path('.env.testing')));
+        $connection = DB::connection();
+
+        if (! app()->environment('testing')
+            || $connection->getDriverName() !== 'mysql'
+            || $connection->getDatabaseName() !== $testingEnvironment['DB_DATABASE']
+            || $connection->getConfig('host') !== $testingEnvironment['DB_HOST']) {
+            throw new RuntimeException('Card concurrency tests require the isolated MySQL test database.');
         }
 
-        $original = DB::getDefaultConnection();
-        config(['database.connections.card_overlap' => array_replace(config('database.connections.sqlite'), [
-            'database' => $path,
-        ])]);
-        DB::setDefaultConnection('card_overlap');
-
-        try {
-            Artisan::call('migrate:fresh', ['--database' => 'card_overlap', '--force' => true]);
-
-            return $run($path);
-        } finally {
-            DB::setDefaultConnection($original);
-            DB::purge('card_overlap');
-            @unlink($path);
-        }
+        return $connection->getDatabaseName();
     }
 
     /**

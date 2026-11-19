@@ -86,12 +86,8 @@ final class BudgetPerformanceTest extends TestCase
 
     private function aggregateUsesIndex(int $userId): bool
     {
-        $isMySql = DB::getDriverName() === 'mysql';
-        $explain = $isMySql ? 'EXPLAIN ' : 'EXPLAIN QUERY PLAN ';
-        $plan = DB::select($explain.'SELECT category_id, SUM(amount_centavos) as total_centavos FROM transactions WHERE user_id = ? AND type = ? AND status = ? AND removed_at IS NULL AND date(transaction_date) >= ? AND date(transaction_date) <= ? GROUP BY category_id', [$userId, 'expense', 'effective', '2026-09-01', '2026-09-30']);
+        $plan = DB::select('EXPLAIN SELECT category_id, SUM(amount_centavos) as total_centavos FROM transactions WHERE user_id = ? AND type = ? AND status = ? AND removed_at IS NULL AND date(transaction_date) >= ? AND date(transaction_date) <= ? GROUP BY category_id', [$userId, 'expense', 'effective', '2026-09-01', '2026-09-30']);
 
-        return $isMySql
-            ? $plan[0]->key !== null
-            : str_contains($plan[0]->detail, 'INDEX');
+        return $plan[0]->key !== null;
     }
 }

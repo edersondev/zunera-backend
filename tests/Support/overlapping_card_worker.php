@@ -16,9 +16,10 @@ $app = require dirname(__DIR__, 2).'/bootstrap/app.php';
 $app->make(Kernel::class)->bootstrap();
 
 [$script, $database, $barrier, $ready, $mode, $userId, $ruleId, $occurrenceId, $alternateCardId, $alternateCategoryId, $index] = $argv;
-config(['database.connections.sqlite.database' => $database]);
-DB::purge('sqlite');
-DB::setDefaultConnection('sqlite');
+if (! app()->environment('testing') || DB::getDriverName() !== 'mysql' || DB::connection()->getDatabaseName() !== $database) {
+    fwrite(STDERR, 'Card concurrency worker requires the isolated MySQL test database.');
+    exit(2);
+}
 file_put_contents($ready, 'ready');
 $deadline = microtime(true) + 20;
 while (! file_exists($barrier)) {

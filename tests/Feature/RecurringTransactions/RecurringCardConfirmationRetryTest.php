@@ -9,19 +9,19 @@ use App\Enums\RecurringTransactions\CardOccurrenceState;
 use App\Models\CreditCardPurchase;
 use App\Models\RecurringCardOccurrence;
 use App\Services\RecurringTransactions\RecurringOccurrenceService;
-use Illuminate\Foundation\Testing\RefreshDatabase;
 use PHPUnit\Framework\Attributes\Test;
 use RuntimeException;
 use Tests\Support\OverlappingCardAttempts;
+use Tests\Support\UsesCommittedMySqlTestDatabase;
 
 final class RecurringCardConfirmationRetryTest extends RecurringTransactionFeatureTestCase
 {
-    use RefreshDatabase;
+    use UsesCommittedMySqlTestDatabase;
 
     #[Test]
     public function one_hundred_overlapping_distinct_confirmation_choices_preserve_the_winner(): void
     {
-        OverlappingCardAttempts::inIsolatedDatabase(function (string $database): void {
+        OverlappingCardAttempts::inMySqlTestDatabase(function (string $database): void {
             [$user, $card, $category, $rule, $occurrence] = $this->expectedOccurrence();
             $otherCard = $this->ownedCard($user);
             $otherCategory = $this->ownedCategory($user);

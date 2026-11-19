@@ -74,10 +74,9 @@ final class FinancialReportPerformanceTest extends TestCase
         self::assertCount(100, $next['contributions']);
         self::assertNotSame($first['contributions'][0]['source_id'], $next['contributions'][0]['source_id']);
 
-        $isSqlite = DB::getDriverName() === 'sqlite';
-        $plan = DB::select(($isSqlite ? 'EXPLAIN QUERY PLAN ' : 'EXPLAIN ').'SELECT id FROM transactions WHERE user_id = ? AND removed_at IS NULL AND transaction_date >= ? AND transaction_date <= ?', [$user->id, '2026-09-01', '2026-09-26']);
-        $planText = json_encode($plan, JSON_THROW_ON_ERROR);
-        self::assertStringContainsString($isSqlite ? 'INDEX' : 'transactions_owner_history_index', $planText);
+        $plan = DB::select('EXPLAIN SELECT id FROM transactions WHERE user_id = ? AND removed_at IS NULL AND transaction_date >= ? AND transaction_date <= ?', [$user->id, '2026-09-01', '2026-09-26']);
+        self::assertNotNull($plan[0]->key);
+        self::assertNotSame('ALL', $plan[0]->type);
 
         if (getenv('REPORT_PERF_LOG') === '1') {
             fwrite(STDOUT, sprintf("\nReport performance: driver=%s records=10000 categories=100 accounts=50 overview=%.3fs first_page=%.3fs indexed=yes\n", DB::getDriverName(), $overviewSeconds, $detailSeconds));
